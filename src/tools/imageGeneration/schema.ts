@@ -77,6 +77,16 @@ export const ImageGenerationInputSchema = z.object({
   image_size: ImageSizeEnum
     .optional()
     .describe('Resolution of generated image: "1K" (default), "2K", or "4K". Gemini models only.'),
+
+  /** Optional path to save the generated image(s) */
+  save_path: z
+    .string()
+    .optional()
+    .describe(
+      'Optional file path to save the generated image. If multiple images are generated, ' +
+      'they will be saved with numbered suffixes (e.g., "image_1.png", "image_2.png"). ' +
+      'The directory must exist. Supports .png, .jpg, .jpeg, .webp extensions.'
+    ),
 });
 
 export type ImageGenerationInput = z.infer<typeof ImageGenerationInputSchema>;
@@ -96,6 +106,9 @@ export interface GeneratedImageInfo {
 
   /** Whether the URL is base64 encoded */
   is_base64: boolean;
+
+  /** Path where the image was saved (if save_path was provided) */
+  saved_to?: string;
 }
 
 /**

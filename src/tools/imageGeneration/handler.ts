@@ -3,7 +3,9 @@
  * Generates images using OpenRouter's chat/completions endpoint with modalities.
  */
 
-import { OpenRouterClient, ImageGenerationRequest, ContentPart } from '../../api/OpenRouterClient.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { OpenRouterClient, ImageGenerationRequest, ContentPart, ImageObject } from '../../api/OpenRouterClient.js';
 import { Logger } from '../../utils/logger.js';
 import { ApiError } from '../../api/errors.js';
 import { CostTracker } from '../../cost/CostTracker.js';
@@ -34,6 +36,29 @@ function extractImagesFromContent(content: ContentPart[] | string | null | undef
   for (const part of content) {
     if (part.type === 'image_url' && part.image_url?.url) {
       imageUrls.push(part.image_url.url);
+    }
+  }
+
+  return imageUrls;
+}
+
+/**
+ * Extract image URLs from the images array.
+ * Some models return images in message.images instead of message.content.
+ * Format: { image_url: { url: "..." } } or { imageUrl: { url: "..." } }
+ */
+function extractImagesFromImagesArray(images: ImageObject[] | undefined): string[] {
+  if (!images || !Array.isArray(images)) {
+    return [];
+  }
+
+  const imageUrls: string[] = [];
+
+  for (const img of images) {
+    // Check both image_url and imageUrl formats (API docs show both)
+    const url = img.image_url?.url || img.imageUrl?.url;
+    if (url) {
+      imageUrls.push(url);
     }
   }
 
@@ -76,6 +101,74 @@ function parseMimeType(dataUrl: string): string {
  */
 function isBase64DataUrl(url: string): boolean {
   return url.startsWith('data:') && url.includes('base64');
+}
+
+/**
+ * Get file extension from MIME type.
+ */
+function getExtensionFromMimeType(mimeType: string): string {
+  const mimeToExt: Record<string, string> = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+  };
+  return mimeToExt[mimeType] || '.png';
+}
+
+/**
+ * Save a base64 image to disk.
+ * Returns the saved file path or undefined if saving failed.
+ */
+function saveBase64Image(
+  dataUrl: string,
+  savePath: string,
+  index: number,
+  totalImages: number,
+  logger: Logger
+): string | undefined {
+  try {
+    // Extract base64 data from data URL
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match || !match[1] || !match[2]) {
+      logger.warn('Invalid data URL format, cannot save image');
+      return undefined;
+    }
+
+    const mimeType: string = match[1];
+    const base64Data: string = match[2];
+
+    // Determine the output path
+    let outputPath = savePath;
+    const parsedPath = path.parse(savePath);
+
+    // If multiple images, add index suffix
+    if (totalImages > 1) {
+      const ext = parsedPath.ext || getExtensionFromMimeType(mimeType);
+      outputPath = path.join(parsedPath.dir, `${parsedPath.name}_${index + 1}${ext}`);
+    } else if (!parsedPath.ext) {
+      // Add extension if not provided
+      outputPath = savePath + getExtensionFromMimeType(mimeType);
+    }
+
+    // Ensure directory exists
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // Decode and save
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(outputPath, buffer);
+
+    logger.info('Image saved successfully', { path: outputPath, size: buffer.length });
+    return outputPath;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to save image', { error: errorMessage, savePath });
+    return undefined;
+  }
 }
 
 /**
@@ -182,7 +275,19 @@ export async function handleImageGeneration(
 
     const data = apiResponse.data;
 
-    // Extract images from response content array
+    // Debug: log the response structure to understand the format
+    console.error('[DEBUG] Image generation response structure:');
+    console.error(`[DEBUG] Has choices: ${Boolean(data.choices?.length)}`);
+    if (data.choices?.[0]?.message) {
+      const msg = data.choices[0].message;
+      console.error(`[DEBUG] Message has content: ${Boolean(msg.content)}, type: ${typeof msg.content}`);
+      console.error(`[DEBUG] Message has images array: ${Boolean(msg.images)}, length: ${msg.images?.length ?? 0}`);
+      if (Array.isArray(msg.content)) {
+        console.error(`[DEBUG] Content array types: ${msg.content.map(c => c.type).join(', ')}`);
+      }
+    }
+
+    // Extract images from response - check BOTH content array AND images array
     const images: GeneratedImageInfo[] = [];
     let textContent: string | undefined;
 
@@ -192,15 +297,40 @@ export async function handleImageGeneration(
       // Extract text content from content array
       textContent = extractTextFromContent(message.content);
 
-      // Extract images from content array (images are ContentPart objects with type: "image_url")
-      const imageUrls = extractImagesFromContent(message.content);
+      // Try to extract images from content array first (type: "image_url" content parts)
+      let imageUrls = extractImagesFromContent(message.content);
+
+      // If no images in content, try the images array (some models use this format)
+      if (imageUrls.length === 0 && message.images) {
+        console.error('[DEBUG] No images in content, checking message.images array');
+        imageUrls = extractImagesFromImagesArray(message.images);
+      }
+
+      console.error(`[DEBUG] Total images extracted: ${imageUrls.length}`);
+
       imageUrls.forEach((imageUrl, index) => {
-        images.push({
+        const imageInfo: GeneratedImageInfo = {
           index,
           data_url: imageUrl,
           mime_type: parseMimeType(imageUrl),
           is_base64: isBase64DataUrl(imageUrl),
-        });
+        };
+
+        // Save image if save_path is provided
+        if (input.save_path && isBase64DataUrl(imageUrl)) {
+          const savedPath = saveBase64Image(
+            imageUrl,
+            input.save_path,
+            index,
+            imageUrls.length,
+            logger
+          );
+          if (savedPath) {
+            imageInfo.saved_to = savedPath;
+          }
+        }
+
+        images.push(imageInfo);
       });
     }
 
@@ -221,6 +351,7 @@ export async function handleImageGeneration(
     logger.info('Image generation completed', {
       model: input.model,
       imageCount: images.length,
+      savedTo: input.save_path ? images.map(i => i.saved_to).filter(Boolean) : undefined,
     });
 
     // Record cost if cost tracker is available and usage data exists

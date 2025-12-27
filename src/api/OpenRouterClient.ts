@@ -152,6 +152,17 @@ export interface ImageGenerationRequest {
   };
 }
 
+// Image object in the images array format
+export interface ImageObject {
+  type?: string;
+  image_url?: {
+    url: string;
+  };
+  imageUrl?: {
+    url: string;
+  };
+}
+
 export interface ImageGenerationResponse {
   id?: string;
   choices: Array<{
@@ -160,6 +171,8 @@ export interface ImageGenerationResponse {
       role: string;
       // Content is an array of content parts (text and image_url objects)
       content?: ContentPart[] | string | null;
+      // Some models return images in a separate images array
+      images?: ImageObject[];
     };
     finish_reason?: string | null;
   }>;
