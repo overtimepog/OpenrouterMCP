@@ -22,14 +22,16 @@ A Model Context Protocol (MCP) server that provides access to 500+ AI models thr
 
 ### Installation
 
+1. Clone the repository:
 ```bash
-npm install -g openrouter-mcp-server
+git clone https://github.com/overtime/openrouter-mcp-server.git
+cd openrouter-mcp-server
 ```
 
-Or run directly with npx:
-
+2. Install dependencies and build:
 ```bash
-npx openrouter-mcp-server
+npm install
+npm run build
 ```
 
 ### Environment Setup
@@ -65,22 +67,6 @@ Add the following to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "openrouter": {
-      "command": "npx",
-      "args": ["openrouter-mcp-server"],
-      "env": {
-        "OPENROUTER_API_KEY": "sk-or-v1-your-api-key-here"
-      }
-    }
-  }
-}
-```
-
-**Alternative using node directly (if you cloned the repo):**
-
-```json
-{
-  "mcpServers": {
-    "openrouter": {
       "command": "node",
       "args": ["/path/to/openrouter-mcp-server/dist/index.js"],
       "env": {
@@ -90,6 +76,8 @@ Add the following to your `claude_desktop_config.json`:
   }
 }
 ```
+
+Make sure to replace `/path/to/openrouter-mcp-server` with the actual path to where you cloned the repository.
 
 ### Verify Configuration
 
