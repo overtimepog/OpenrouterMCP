@@ -275,18 +275,6 @@ export async function handleImageGeneration(
 
     const data = apiResponse.data;
 
-    // Debug: log the response structure to understand the format
-    console.error('[DEBUG] Image generation response structure:');
-    console.error(`[DEBUG] Has choices: ${Boolean(data.choices?.length)}`);
-    if (data.choices?.[0]?.message) {
-      const msg = data.choices[0].message;
-      console.error(`[DEBUG] Message has content: ${Boolean(msg.content)}, type: ${typeof msg.content}`);
-      console.error(`[DEBUG] Message has images array: ${Boolean(msg.images)}, length: ${msg.images?.length ?? 0}`);
-      if (Array.isArray(msg.content)) {
-        console.error(`[DEBUG] Content array types: ${msg.content.map(c => c.type).join(', ')}`);
-      }
-    }
-
     // Extract images from response - check BOTH content array AND images array
     const images: GeneratedImageInfo[] = [];
     let textContent: string | undefined;
@@ -302,11 +290,8 @@ export async function handleImageGeneration(
 
       // If no images in content, try the images array (some models use this format)
       if (imageUrls.length === 0 && message.images) {
-        console.error('[DEBUG] No images in content, checking message.images array');
         imageUrls = extractImagesFromImagesArray(message.images);
       }
-
-      console.error(`[DEBUG] Total images extracted: ${imageUrls.length}`);
 
       imageUrls.forEach((imageUrl, index) => {
         const imageInfo: GeneratedImageInfo = {

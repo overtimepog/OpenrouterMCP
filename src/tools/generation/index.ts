@@ -65,6 +65,7 @@ export function createGetGenerationTool(
                 text: `Error fetching generation stats: ${mcpError.message} (Code: ${mcpError.code})`,
               },
             ],
+            isError: true,
             structuredContent: {
               error: true,
               code: mcpError.code,
@@ -81,6 +82,7 @@ export function createGetGenerationTool(
               text: `Error fetching generation stats: ${errorMessage}`,
             },
           ],
+          isError: true,
           structuredContent: {
             error: true,
             message: errorMessage,

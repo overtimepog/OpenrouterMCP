@@ -465,11 +465,6 @@ export class OpenRouterClient {
     // Build headers
     const headers = this.buildHeaders(additionalHeaders);
 
-    // Direct console output for debugging auth issues
-    console.error(`[DEBUG] API Request: ${method} ${url}`);
-    console.error(`[DEBUG] Auth header present: ${Boolean(headers['Authorization'])}`);
-    console.error(`[DEBUG] Auth header prefix: ${headers['Authorization']?.substring(0, 25)}...`);
-
     // Detailed debug logging for troubleshooting
     this.config.logger.debug('Making API request', {
       method,
@@ -631,11 +626,6 @@ export class OpenRouterClient {
     const throttleStatus = await this.rateLimitManager.waitForThrottle();
 
     const headers = this.buildHeaders();
-
-    // Direct console output for debugging auth issues
-    console.error(`[DEBUG] Streaming Request: POST ${url}`);
-    console.error(`[DEBUG] Auth header present: ${Boolean(headers['Authorization'])}`);
-    console.error(`[DEBUG] Auth header prefix: ${headers['Authorization']?.substring(0, 25)}...`);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);

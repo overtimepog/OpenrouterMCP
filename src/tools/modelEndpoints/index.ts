@@ -74,6 +74,7 @@ Use this to compare providers for a specific model and choose the best one for y
                 text: `Error fetching model endpoints: ${mcpError.message} (Code: ${mcpError.code})`,
               },
             ],
+            isError: true,
             structuredContent: {
               error: true,
               code: mcpError.code,
@@ -90,6 +91,7 @@ Use this to compare providers for a specific model and choose the best one for y
               text: `Error fetching model endpoints: ${errorMessage}`,
             },
           ],
+          isError: true,
           structuredContent: {
             error: true,
             message: errorMessage,

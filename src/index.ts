@@ -43,12 +43,8 @@ export function validateEnvironment(): { apiKey: string } {
     process.exit(1);
   }
 
-  // Direct console output for debugging
-  console.error(`[DEBUG] API Key loaded: length=${apiKey.length}, prefix=${apiKey.substring(0, 15)}...`);
-
   logger.info('Environment validation passed', {
     apiKeyLength: apiKey.length,
-    apiKeyPrefix: apiKey.substring(0, 15) + '...',
   });
   return { apiKey };
 }
