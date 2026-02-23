@@ -113,6 +113,24 @@ export async function handleNonStreamingChat(
     ...(input.tools && { tools: input.tools }),
     ...(input.tool_choice && { tool_choice: input.tool_choice }),
     ...(input.response_format && { response_format: input.response_format }),
+    ...(input.top_p !== undefined && { top_p: input.top_p }),
+    ...(input.top_k !== undefined && { top_k: input.top_k }),
+    ...(input.min_p !== undefined && { min_p: input.min_p }),
+    ...(input.top_a !== undefined && { top_a: input.top_a }),
+    ...(input.frequency_penalty !== undefined && { frequency_penalty: input.frequency_penalty }),
+    ...(input.presence_penalty !== undefined && { presence_penalty: input.presence_penalty }),
+    ...(input.repetition_penalty !== undefined && { repetition_penalty: input.repetition_penalty }),
+    ...(input.seed !== undefined && { seed: input.seed }),
+    ...(input.stop !== undefined && { stop: input.stop }),
+    ...(input.parallel_tool_calls !== undefined && { parallel_tool_calls: input.parallel_tool_calls }),
+    ...(input.structured_outputs !== undefined && { structured_outputs: input.structured_outputs }),
+    ...(input.reasoning && { reasoning: input.reasoning }),
+    ...(input.plugins && { plugins: input.plugins }),
+    ...(input.provider && { provider: input.provider }),
+    ...(input.transforms && { transforms: input.transforms }),
+    ...(input.models && { models: input.models }),
+    ...(input.route && { route: input.route }),
+    ...(input.prediction && { prediction: input.prediction }),
   };
 
   // Make the API call
@@ -127,9 +145,16 @@ export async function handleNonStreamingChat(
 
   // Extract response content
   const choice = rawResponse.choices[0];
-  const content = choice?.message.content ?? null;
+  const message = choice?.message as Record<string, unknown> | undefined;
+  const content = (message?.content as string) ?? null;
   const toolCalls = extractToolCalls(rawResponse);
   const finishReason = choice?.finish_reason ?? null;
+  const nativeFinishReason = (choice as Record<string, unknown> | undefined)?.native_finish_reason as string | undefined;
+
+  // Extract reasoning and annotations if present
+  const reasoning = message?.reasoning as string | undefined;
+  const reasoningDetails = message?.reasoning_details as ChatResponse['reasoning_details'];
+  const annotations = message?.annotations as ChatResponse['annotations'];
 
   // Add assistant response to session
   if (content || toolCalls) {
@@ -154,6 +179,10 @@ export async function handleNonStreamingChat(
     rate_limit_status: toRateLimitStatus(apiResponse.rateLimits),
     finish_reason: finishReason,
     model: input.model,
+    ...(reasoning && { reasoning }),
+    ...(reasoningDetails && { reasoning_details: reasoningDetails }),
+    ...(annotations && { annotations }),
+    ...(nativeFinishReason && { native_finish_reason: nativeFinishReason }),
   };
 
   return {

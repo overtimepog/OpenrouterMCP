@@ -39,6 +39,7 @@ interface SSEChunk {
     delta: {
       role?: string;
       content?: string;
+      reasoning?: string;
       tool_calls?: Array<{
         index: number;
         id?: string;
@@ -50,6 +51,8 @@ interface SSEChunk {
       }>;
     };
     finish_reason?: string | null;
+    native_finish_reason?: string;
+    annotations?: Array<{ type: string; url_citation?: { url: string; title: string; content?: string } }>;
   }>;
   usage?: {
     prompt_tokens: number;
@@ -231,6 +234,24 @@ export async function handleStreamingChat(
     ...(input.tools && { tools: input.tools }),
     ...(input.tool_choice && { tool_choice: input.tool_choice }),
     ...(input.response_format && { response_format: input.response_format }),
+    ...(input.top_p !== undefined && { top_p: input.top_p }),
+    ...(input.top_k !== undefined && { top_k: input.top_k }),
+    ...(input.min_p !== undefined && { min_p: input.min_p }),
+    ...(input.top_a !== undefined && { top_a: input.top_a }),
+    ...(input.frequency_penalty !== undefined && { frequency_penalty: input.frequency_penalty }),
+    ...(input.presence_penalty !== undefined && { presence_penalty: input.presence_penalty }),
+    ...(input.repetition_penalty !== undefined && { repetition_penalty: input.repetition_penalty }),
+    ...(input.seed !== undefined && { seed: input.seed }),
+    ...(input.stop !== undefined && { stop: input.stop }),
+    ...(input.parallel_tool_calls !== undefined && { parallel_tool_calls: input.parallel_tool_calls }),
+    ...(input.structured_outputs !== undefined && { structured_outputs: input.structured_outputs }),
+    ...(input.reasoning && { reasoning: input.reasoning }),
+    ...(input.plugins && { plugins: input.plugins }),
+    ...(input.provider && { provider: input.provider }),
+    ...(input.transforms && { transforms: input.transforms }),
+    ...(input.models && { models: input.models }),
+    ...(input.route && { route: input.route }),
+    ...(input.prediction && { prediction: input.prediction }),
   };
 
   // Make the streaming API call
@@ -240,6 +261,9 @@ export async function handleStreamingChat(
   // Collect and process chunks
   const chunks: StreamingChunk[] = [];
   let usage = undefined;
+  let reasoningAccumulator = '';
+  let nativeFinishReason: string | undefined;
+  let annotations: ChatResponse['annotations'] | undefined;
 
   for await (const sseChunk of parseSSEStream(streamResponse.stream, logger)) {
     const choice = sseChunk.choices?.[0];
@@ -255,6 +279,19 @@ export async function handleStreamingChat(
       };
 
       chunks.push(streamingChunk);
+
+      // Accumulate reasoning tokens
+      if (choice.delta.reasoning) {
+        reasoningAccumulator += choice.delta.reasoning;
+      }
+
+      // Capture native_finish_reason and annotations (typically on final chunk)
+      if (choice.native_finish_reason) {
+        nativeFinishReason = choice.native_finish_reason;
+      }
+      if (choice.annotations) {
+        annotations = choice.annotations;
+      }
     }
 
     // Capture usage if present (usually in final chunk)
@@ -287,6 +324,7 @@ export async function handleStreamingChat(
   }
 
   // Build response
+  const reasoning = reasoningAccumulator || undefined;
   const response: ChatResponse = {
     content: content || null,
     tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -295,6 +333,9 @@ export async function handleStreamingChat(
     rate_limit_status: toRateLimitStatus(rateLimits),
     finish_reason: finishReason,
     model: input.model,
+    ...(reasoning && { reasoning }),
+    ...(annotations && { annotations }),
+    ...(nativeFinishReason && { native_finish_reason: nativeFinishReason }),
   };
 
   return {

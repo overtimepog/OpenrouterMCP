@@ -124,12 +124,34 @@ function formatTextResponse(response: ChatResponse): string {
     lines.push(`Finish Reason: ${response.finish_reason}`);
   }
 
+  if (response.native_finish_reason) {
+    lines.push(`Native Finish Reason: ${response.native_finish_reason}`);
+  }
+
   lines.push('');
+
+  // Reasoning
+  if (response.reasoning) {
+    lines.push('--- Reasoning ---');
+    lines.push(response.reasoning);
+    lines.push('');
+  }
 
   // Content
   if (response.content) {
     lines.push('--- Response ---');
     lines.push(response.content);
+    lines.push('');
+  }
+
+  // Annotations (e.g., URL citations)
+  if (response.annotations && response.annotations.length > 0) {
+    lines.push('--- Citations ---');
+    for (const ann of response.annotations) {
+      if (ann.url_citation) {
+        lines.push(`  [${ann.url_citation.title}](${ann.url_citation.url})`);
+      }
+    }
     lines.push('');
   }
 
