@@ -1,0 +1,16 @@
+{
+  "description": "OpenRouter MCP plugin - auto-build on session start if dist is missing",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
