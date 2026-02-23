@@ -71,16 +71,39 @@ export type ListModelsInput = z.infer<typeof ListModelsInputSchema>;
 export interface ModelInfo {
   id: string;
   name: string;
+  description?: string;
   context_length: number;
   pricing: {
     prompt: number;
     completion: number;
+    request?: number;
+    image?: number;
+    web_search?: number;
+    internal_reasoning?: number;
+    input_cache_read?: number;
+    input_cache_write?: number;
   };
   provider: string;
   capabilities: {
     modality: string;
+    input_modalities?: string[];
+    output_modalities?: string[];
     supports_tools?: boolean;
     supports_streaming?: boolean;
+    supports_temperature?: boolean;
+    supports_reasoning?: boolean;
+    supports_json_output?: boolean;
+    supports_web_search?: boolean;
+  };
+  supported_parameters?: string[];
+  per_request_limits?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  } | null;
+  top_provider?: {
+    context_length?: number;
+    max_completion_tokens?: number;
+    is_moderated?: boolean;
   };
 }
 

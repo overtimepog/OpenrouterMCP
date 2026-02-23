@@ -41,20 +41,8 @@ export function filterByToolsSupport(
   supportsTools: boolean
 ): OpenRouterModel[] {
   return models.filter((model) => {
-    // Check if model supports tools based on architecture or known capabilities
-    // OpenRouter models typically support tools if they're based on certain architectures
-    const modelId = model.id.toLowerCase();
-    const supportsToolCalling =
-      modelId.includes('gpt-4') ||
-      modelId.includes('gpt-3.5-turbo') ||
-      modelId.includes('claude-3') ||
-      modelId.includes('claude-2') ||
-      modelId.includes('gemini') ||
-      modelId.includes('mistral') && (modelId.includes('large') || modelId.includes('medium')) ||
-      modelId.includes('command') ||
-      modelId.includes('qwen');
-
-    return supportsTools ? supportsToolCalling : !supportsToolCalling;
+    const hasToolSupport = model.supported_parameters?.includes('tools') ?? false;
+    return supportsTools ? hasToolSupport : !hasToolSupport;
   });
 }
 
@@ -66,11 +54,9 @@ export function filterByStreamingSupport(
   models: OpenRouterModel[],
   supportsStreaming: boolean
 ): OpenRouterModel[] {
-  return models.filter((model) => {
-    // Most models support streaming; only filter out specific known exceptions
-    const modelId = model.id.toLowerCase();
-    const hasStreamingSupport = !modelId.includes('dall-e') && !modelId.includes('stable-diffusion');
-
+  return models.filter((_model) => {
+    // Most models support streaming; only image-only models don't
+    const hasStreamingSupport = true;
     return supportsStreaming ? hasStreamingSupport : !hasStreamingSupport;
   });
 }
@@ -83,14 +69,7 @@ export function filterByTemperatureSupport(
   supportsTemperature: boolean
 ): OpenRouterModel[] {
   return models.filter((model) => {
-    // Most language models support temperature
-    // Image generation models typically don't
-    const modelId = model.id.toLowerCase();
-    const hasTemperatureSupport =
-      !modelId.includes('dall-e') &&
-      !modelId.includes('stable-diffusion') &&
-      !modelId.includes('midjourney');
-
+    const hasTemperatureSupport = model.supported_parameters?.includes('temperature') ?? true;
     return supportsTemperature ? hasTemperatureSupport : !hasTemperatureSupport;
   });
 }
@@ -222,7 +201,9 @@ export function extractLatencyHint(_model: OpenRouterModel): SearchModelInfo['la
  */
 export function generateDifferentiators(model: OpenRouterModel): string[] {
   const differentiators: string[] = [];
-  const modelId = model.id.toLowerCase();
+  const supportedParams = model.supported_parameters ?? [];
+  const inputMods = model.architecture?.input_modalities ?? [];
+  const outputMods = model.architecture?.output_modalities ?? [];
 
   // Price differentiator
   const promptPrice = parsePrice(model.pricing?.prompt);
@@ -242,32 +223,42 @@ export function generateDifferentiators(model: OpenRouterModel): string[] {
     differentiators.push('Extended Context (32K+)');
   }
 
-  // Capability differentiators
-  if (modelId.includes('vision') || model.architecture?.modality?.includes('image')) {
+  // Capability differentiators from real API data
+  if (inputMods.includes('image') || inputMods.includes('vision')) {
     differentiators.push('Vision Capable');
   }
 
-  if (modelId.includes('code') || modelId.includes('codex')) {
-    differentiators.push('Code Optimized');
+  if (outputMods.includes('image')) {
+    differentiators.push('Image Generation');
   }
 
-  // Tool support indicator
-  if (
-    modelId.includes('gpt-4') ||
-    modelId.includes('claude-3') ||
-    modelId.includes('gemini')
-  ) {
+  if (inputMods.includes('audio') || outputMods.includes('audio')) {
+    differentiators.push('Audio Capable');
+  }
+
+  // Tool support from supported_parameters
+  if (supportedParams.includes('tools')) {
     differentiators.push('Tool Calling');
   }
 
-  // Provider-specific differentiators
-  if (modelId.includes('claude')) {
-    differentiators.push('Anthropic');
-  } else if (modelId.includes('gpt')) {
-    differentiators.push('OpenAI');
-  } else if (modelId.includes('gemini')) {
-    differentiators.push('Google');
+  // Reasoning support from supported_parameters
+  if (supportedParams.includes('reasoning')) {
+    differentiators.push('Reasoning');
   }
+
+  // Web search support from supported_parameters
+  if (supportedParams.includes('web_search')) {
+    differentiators.push('Web Search');
+  }
+
+  // JSON output support
+  if (supportedParams.includes('structured_outputs') || supportedParams.includes('response_format')) {
+    differentiators.push('Structured Output');
+  }
+
+  // Provider from model ID
+  const provider = extractProvider(model.id);
+  differentiators.push(provider);
 
   return differentiators;
 }

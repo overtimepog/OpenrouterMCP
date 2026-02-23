@@ -42,12 +42,16 @@ export function parsePrice(price: string | undefined): number {
  * Extract modality from model architecture
  */
 export function extractModality(model: OpenRouterModel): string {
-  const modality = model.architecture?.modality;
-  if (!modality) return 'text';
+  if (model.architecture?.input_modalities?.length) {
+    return model.architecture.input_modalities.join(',');
+  }
+  // Fall back to legacy modality field
+  const rawModality = model.architecture?.modality ?? '';
+  if (!rawModality) return 'text';
 
   // OpenRouter modalities can be: "text", "text+image", "image", "audio", etc.
-  if (modality.includes('audio')) return 'audio';
-  if (modality.includes('image')) return 'vision';
+  if (rawModality.includes('audio')) return 'audio';
+  if (rawModality.includes('image')) return 'vision';
   return 'text';
 }
 
@@ -55,20 +59,54 @@ export function extractModality(model: OpenRouterModel): string {
  * Convert OpenRouter model to ModelInfo format
  */
 export function toModelInfo(model: OpenRouterModel): ModelInfo {
+  // Real capability detection from API data
+  const supportedParams = model.supported_parameters ?? [];
+  const inputMods = model.architecture?.input_modalities ?? [];
+  const outputMods = model.architecture?.output_modalities ?? [];
+
+  // Use supported_parameters for accurate capability detection
+  const supports_tools = supportedParams.includes('tools');
+  const supports_streaming = true; // Most models support streaming unless explicitly not
+  const supports_temperature = supportedParams.includes('temperature');
+  const supports_reasoning = supportedParams.includes('reasoning');
+  const supports_json_output = supportedParams.includes('structured_outputs') || supportedParams.includes('response_format');
+  const supports_web_search = supportedParams.includes('web_search');
+
+  // Use input/output modalities for modality detection instead of legacy string
+  const modality = inputMods.length > 0
+    ? `${inputMods.join(',')} -> ${outputMods.join(',')}`
+    : (model.architecture?.modality ?? 'text');
+
   return {
     id: model.id,
     name: model.name ?? model.id,
+    description: model.description,
     context_length: model.context_length ?? 0,
     pricing: {
       prompt: parsePrice(model.pricing?.prompt),
       completion: parsePrice(model.pricing?.completion),
+      request: parsePrice(model.pricing?.request) || undefined,
+      image: parsePrice(model.pricing?.image) || undefined,
+      web_search: parsePrice(model.pricing?.web_search) || undefined,
+      internal_reasoning: parsePrice(model.pricing?.internal_reasoning) || undefined,
+      input_cache_read: parsePrice(model.pricing?.input_cache_read) || undefined,
+      input_cache_write: parsePrice(model.pricing?.input_cache_write) || undefined,
     },
     provider: extractProvider(model.id),
     capabilities: {
-      modality: extractModality(model),
-      supports_tools: undefined, // Would need additional API data
-      supports_streaming: true, // Most models support streaming
+      modality,
+      input_modalities: inputMods.length > 0 ? inputMods : undefined,
+      output_modalities: outputMods.length > 0 ? outputMods : undefined,
+      supports_tools,
+      supports_streaming,
+      supports_temperature,
+      supports_reasoning,
+      supports_json_output,
+      supports_web_search,
     },
+    supported_parameters: model.supported_parameters,
+    per_request_limits: model.per_request_limits,
+    top_provider: model.top_provider,
   };
 }
 
