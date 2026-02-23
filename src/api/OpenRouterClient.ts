@@ -48,13 +48,30 @@ export interface ApiResponse<T> {
 export interface OpenRouterModel {
   id: string;
   name?: string;
+  canonical_slug?: string;
   description?: string;
+  created?: number;
   context_length?: number;
+  hugging_face_id?: string;
+  expiration_date?: string;
   pricing?: {
     prompt?: string;
     completion?: string;
+    request?: string;
+    image?: string;
+    image_token?: string;
+    image_output?: string;
+    audio?: string;
+    audio_output?: string;
+    input_audio_cache?: string;
+    web_search?: string;
+    internal_reasoning?: string;
+    input_cache_read?: string;
+    input_cache_write?: string;
+    discount?: number;
   };
   top_provider?: {
+    context_length?: number;
     max_completion_tokens?: number;
     is_moderated?: boolean;
   };
@@ -62,6 +79,18 @@ export interface OpenRouterModel {
     modality?: string;
     tokenizer?: string;
     instruct_type?: string;
+    input_modalities?: string[];
+    output_modalities?: string[];
+  };
+  supported_parameters?: string[];
+  per_request_limits?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  } | null;
+  default_parameters?: {
+    temperature?: number | null;
+    top_p?: number | null;
+    frequency_penalty?: number | null;
   };
 }
 
@@ -82,6 +111,15 @@ export interface ChatCompletionRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  top_p?: number;
+  top_k?: number;
+  min_p?: number;
+  top_a?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  repetition_penalty?: number;
+  seed?: number;
+  stop?: string | string[];
   tools?: Array<{
     type: 'function';
     function: {
@@ -91,8 +129,48 @@ export interface ChatCompletionRequest {
     };
   }>;
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
-  response_format?: { type: 'text' | 'json_object' };
-  usage?: { include: boolean }; // Enable cost tracking in response
+  parallel_tool_calls?: boolean;
+  response_format?: { type: 'text' | 'json_object' | 'json_schema'; json_schema?: { name: string; strict?: boolean; schema: Record<string, unknown> } };
+  structured_outputs?: boolean;
+  reasoning?: {
+    effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+    max_tokens?: number;
+    exclude?: boolean;
+    enabled?: boolean;
+  };
+  plugins?: Array<{
+    id: string;
+    engine?: 'native' | 'exa';
+    max_results?: number;
+    search_prompt?: string;
+    enabled?: boolean;
+  }>;
+  provider?: {
+    order?: string[];
+    allow_fallbacks?: boolean;
+    require_parameters?: boolean;
+    data_collection?: 'allow' | 'deny';
+    ignore?: string[];
+    only?: string[];
+    quantizations?: string[];
+    sort?: string | { by: string; partition?: string };
+  };
+  transforms?: string[];
+  models?: string[];
+  route?: 'fallback';
+  prediction?: { type: 'content'; content: string };
+  usage?: { include: boolean };
+}
+
+export interface ReasoningDetail {
+  type: 'reasoning.summary' | 'reasoning.encrypted' | 'reasoning.text';
+  id?: string | null;
+  format?: string;
+  index?: number;
+  summary?: string;
+  data?: string;
+  text?: string;
+  signature?: string | null;
 }
 
 export interface ChatCompletionResponse {
@@ -102,6 +180,8 @@ export interface ChatCompletionResponse {
     message: {
       role: string;
       content: string | null;
+      reasoning?: string;
+      reasoning_details?: ReasoningDetail[];
       tool_calls?: Array<{
         id: string;
         type: string;
@@ -110,14 +190,25 @@ export interface ChatCompletionResponse {
           arguments: string;
         };
       }>;
+      annotations?: Array<{
+        type: string;
+        url_citation?: {
+          url: string;
+          title: string;
+          content?: string;
+          start_index?: number;
+          end_index?: number;
+        };
+      }>;
     };
     finish_reason: string | null;
+    native_finish_reason?: string;
   }>;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
-    cost?: number; // Cost in credits
+    cost?: number;
     prompt_tokens_details?: {
       cached_tokens?: number;
       audio_tokens?: number;
@@ -189,6 +280,95 @@ export interface CreditsResponse {
   data: {
     total_credits: number;
     total_usage: number;
+  };
+}
+
+// Generation stats types
+export interface GenerationStatsResponse {
+  data: {
+    id: string;
+    model: string;
+    provider_name?: string;
+    upstream_id?: string;
+    created_at: string;
+    tokens_prompt: number;
+    tokens_completion: number;
+    native_tokens_prompt?: number;
+    native_tokens_completion?: number;
+    native_tokens_reasoning?: number;
+    native_tokens_cached?: number;
+    native_tokens_images?: number;
+    num_media_prompt?: number;
+    num_media_completion?: number;
+    num_search_results?: number;
+    total_cost: number;
+    usage?: number;
+    cache_discount?: number | null;
+    upstream_inference_cost?: number;
+    latency: number;
+    generation_time: number;
+    moderation_latency?: number;
+    streamed: boolean;
+    cancelled?: boolean;
+    finish_reason: string;
+    native_finish_reason?: string;
+    is_byok?: boolean;
+    origin?: string;
+  };
+}
+
+// Model endpoints types
+export interface ModelEndpoint {
+  name: string;
+  model_id: string;
+  model_name?: string;
+  provider_name: string;
+  tag?: string;
+  status?: string;
+  context_length: number;
+  max_completion_tokens?: number;
+  max_prompt_tokens?: number;
+  supported_parameters?: string[];
+  quantization?: string;
+  supports_implicit_caching?: boolean;
+  pricing: {
+    prompt?: string;
+    completion?: string;
+    request?: string;
+    image?: string;
+    web_search?: string;
+    internal_reasoning?: string;
+    input_cache_read?: string;
+    input_cache_write?: string;
+  };
+  latency_last_30m?: {
+    p50?: number;
+    p75?: number;
+    p90?: number;
+    p99?: number;
+  };
+  throughput_last_30m?: {
+    p50?: number;
+    p75?: number;
+    p90?: number;
+    p99?: number;
+  };
+  uptime_last_30m?: number;
+}
+
+export interface ModelEndpointsResponse {
+  data: {
+    id: string;
+    name: string;
+    created?: number;
+    description?: string;
+    architecture?: {
+      input_modalities?: string[];
+      output_modalities?: string[];
+      tokenizer?: string;
+      instruct_type?: string;
+    };
+    endpoints: ModelEndpoint[];
   };
 }
 
@@ -512,6 +692,21 @@ export class OpenRouterClient {
 
       throw createNetworkError(error);
     }
+  }
+
+  /**
+   * Get generation stats for a specific completion.
+   */
+  async getGeneration(generationId: string): Promise<ApiResponse<GenerationStatsResponse>> {
+    return this.request<GenerationStatsResponse>(`/generation?id=${encodeURIComponent(generationId)}`);
+  }
+
+  /**
+   * Get all available endpoints/providers for a specific model.
+   * @param modelSlug Model identifier in "author/model-name" format
+   */
+  async getModelEndpoints(modelSlug: string): Promise<ApiResponse<ModelEndpointsResponse>> {
+    return this.request<ModelEndpointsResponse>(`/models/${modelSlug}/endpoints`);
   }
 
   // ============================================================================
