@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "openrouter": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "env": {
+        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}"
+      }
+    }
+  }
+}

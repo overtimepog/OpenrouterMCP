@@ -1,0 +1,7 @@
+{
+  "name": "openrouter",
+  "version": "1.0.0",
+  "description": "Access 500+ AI models through OpenRouter - chat, image generation, model search, and cost tracking",
+  "author": { "name": "overtime" },
+  "keywords": ["openrouter", "ai", "llm", "image-generation", "multi-model"]
+}
