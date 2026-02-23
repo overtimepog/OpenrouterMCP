@@ -29,21 +29,24 @@ const mockModels: OpenRouterModel[] = [
     name: 'GPT-4',
     context_length: 8192,
     pricing: { prompt: '0.00003', completion: '0.00006' },
-    architecture: { modality: 'text', tokenizer: 'gpt-4' },
+    architecture: { modality: 'text', tokenizer: 'gpt-4', input_modalities: ['text'], output_modalities: ['text'] },
+    supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream'],
   },
   {
     id: 'openai/gpt-4-turbo',
     name: 'GPT-4 Turbo',
     context_length: 128000,
     pricing: { prompt: '0.00001', completion: '0.00003' },
-    architecture: { modality: 'text+image', tokenizer: 'gpt-4' },
+    architecture: { modality: 'text+image', tokenizer: 'gpt-4', input_modalities: ['text', 'image'], output_modalities: ['text'] },
+    supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream', 'response_format'],
   },
   {
     id: 'anthropic/claude-3-opus',
     name: 'Claude 3 Opus',
     context_length: 200000,
     pricing: { prompt: '0.000015', completion: '0.000075' },
-    architecture: { modality: 'text+image', tokenizer: 'claude' },
+    architecture: { modality: 'text+image', tokenizer: 'claude', input_modalities: ['text', 'image'], output_modalities: ['text'] },
+    supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream'],
   },
 ];
 
