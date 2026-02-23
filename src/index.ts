@@ -18,6 +18,8 @@ import { createChatTool } from './tools/chat/index.js';
 import { createImageGenerationTool } from './tools/imageGeneration/index.js';
 import { createGetCreditsTool } from './tools/credits/index.js';
 import { createGetCostSummaryTool } from './tools/costSummary/index.js';
+import { createGetGenerationTool } from './tools/generation/index.js';
+import { createGetModelEndpointsTool } from './tools/modelEndpoints/index.js';
 import { logger } from './utils/logger.js';
 
 // ============================================================================
@@ -152,6 +154,20 @@ export function registerTools(
     logger: toolLogger,
   });
   server.registerTool(getCostSummaryTool);
+
+  // Register openrouter_get_generation tool
+  const getGenerationTool = createGetGenerationTool({
+    client,
+    logger: toolLogger,
+  });
+  server.registerTool(getGenerationTool);
+
+  // Register openrouter_get_model_endpoints tool
+  const getModelEndpointsTool = createGetModelEndpointsTool({
+    client,
+    logger: toolLogger,
+  });
+  server.registerTool(getModelEndpointsTool);
 
   toolLogger.info('All tools registered', {
     tools: server.getRegisteredTools(),
