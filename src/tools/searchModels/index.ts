@@ -42,11 +42,11 @@ export const SEARCH_MODELS_TOOL_NAME = 'openrouter_search_models';
  * Tool description
  */
 export const SEARCH_MODELS_TOOL_DESCRIPTION = `Search and compare AI models from OpenRouter with advanced filtering and sorting.
-Extends list models with:
-- Tool/function calling support filter
-- Streaming support filter
-- Temperature parameter support filter
-- Sorting by price, context length, or provider
+IMPORTANT: You MUST call this tool (or openrouter_list_models) BEFORE calling openrouter_chat or openrouter_generate_image to discover current, valid model IDs. Never guess model IDs from memory - always look them up first to ensure you use the latest available models.
+
+Features:
+- Filter by tool/function calling, streaming, and temperature support
+- Sort by price, context length, or provider
 - Latency hints (when available)
 - Side-by-side comparison output with model rankings`;
 

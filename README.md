@@ -141,7 +141,7 @@ Generate images using AI models.
 
 ### `openrouter_get_credits`
 
-Check your OpenRouter account balance. Returns total credits, usage, available balance, and usage percentage.
+Check your OpenRouter API key balance and usage. Returns credit limit, remaining balance, total usage, and daily/weekly/monthly breakdowns.
 
 ### `openrouter_get_cost_summary`
 
@@ -221,7 +221,7 @@ npm install
 # Build
 npm run build
 
-# Run tests (300 tests)
+# Run tests (301 tests)
 npm test
 
 # Watch mode

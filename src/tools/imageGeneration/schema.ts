@@ -53,9 +53,9 @@ export const ImageGenerationInputSchema = z.object({
     .string()
     .min(1, 'Model ID is required')
     .describe(
-      'The model ID to use for image generation. Supported models include: ' +
-      '"google/gemini-2.5-flash-image-preview", "black-forest-labs/flux.2-pro", ' +
-      '"black-forest-labs/flux.2-flex", "black-forest-labs/flux-schnell"'
+      'The model ID to use for image generation. Use openrouter_search_models to find current image-capable models. ' +
+      'Common providers: google (Gemini image models), black-forest-labs (Flux models), openai (GPT image models). ' +
+      'Always use the EXACT model ID specified by the user or discovered via search.'
     ),
 
   /** Text prompt describing the image to generate (required) */

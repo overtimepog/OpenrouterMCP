@@ -39,8 +39,12 @@ export const CHAT_TOOL_NAME = 'openrouter_chat';
 export const CHAT_TOOL_DESCRIPTION = `Chat with any AI model available through OpenRouter.
 Supports streaming responses, multi-turn conversations via sessions, and function/tool calling.
 
+REQUIRED: Before calling this tool, you MUST first call openrouter_search_models or openrouter_list_models to discover current model IDs. Do NOT guess or hardcode model IDs from memory - models are updated frequently and your knowledge of model IDs is likely outdated. Always use the latest models available for the best results.
+
+If the user specifies exact model IDs, use those. Otherwise, search for the latest/best model for the task.
+
 Parameters:
-- model: The model ID to use (e.g., "openai/gpt-4", "anthropic/claude-3-opus")
+- model: The model ID (format: "provider/model-name"). Get valid IDs from openrouter_search_models or openrouter_list_models first.
 - messages: Array of messages with role (system/user/assistant/tool) and content
 - session_id: Optional - continue an existing conversation
 - stream: Whether to stream the response (default: true)
@@ -49,11 +53,7 @@ Parameters:
 - tools: OpenAI-compatible function definitions for tool calling (optional)
 - tool_choice: How to select tools - auto/none/required/specific (optional)
 
-Returns:
-- content: The model's text response
-- tool_calls: Any tool calls requested by the model (not executed, returned for client handling)
-- usage: Token usage statistics
-- session_id: Session ID for continuing the conversation`;
+Returns: content, tool_calls, usage, session_id`;
 
 /**
  * Create the chat tool registration for the MCP server

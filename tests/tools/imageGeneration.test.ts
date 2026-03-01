@@ -411,8 +411,8 @@ describe('Image Generation Tool', () => {
         logger: mockLogger,
       });
 
-      expect(tool.description).toContain('Gemini');
-      expect(tool.description).toContain('Flux');
+      expect(tool.description).toContain('image');
+      expect(tool.description).toContain('openrouter_search_models');
       expect(tool.description).toContain('aspect_ratio');
       expect(tool.description).toContain('image_size');
     });

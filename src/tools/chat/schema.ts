@@ -75,7 +75,7 @@ export const ChatInputSchema = z.object({
   model: z
     .string()
     .min(1, 'Model ID is required')
-    .describe('The model ID to use for the chat completion (e.g., "openai/gpt-4")'),
+    .describe('The model ID (format: "provider/model-name"). MUST be discovered via openrouter_search_models or openrouter_list_models first - never guess from memory.'),
 
   /** Array of messages for the conversation (required) */
   messages: z

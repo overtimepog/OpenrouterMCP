@@ -41,18 +41,13 @@ export function createImageGenerationTool(
     name: IMAGE_GENERATION_TOOL_NAME,
     description: `Generate images using AI models through OpenRouter.
 
-Supports image generation models including:
-- Google Gemini (gemini-2.5-flash-image-preview) - supports aspect_ratio and image_size
-- Black Forest Labs Flux (flux.2-pro, flux.2-flex, flux-schnell)
-- And other image-capable models
-
-The tool accepts a text prompt and optional configuration, returning generated images as base64 data URLs.
+REQUIRED: Before calling this tool, you MUST first call openrouter_search_models or openrouter_list_models to discover current image generation model IDs. Do NOT guess or hardcode model IDs from memory - models are updated frequently and your knowledge of model IDs is likely outdated. Always use the latest models available.
 
 Parameters:
-- model (required): The image generation model ID
+- model (required): The image generation model ID. Get valid IDs from openrouter_search_models first.
 - prompt (required): Text description of the desired image
-- aspect_ratio (optional): Image aspect ratio (1:1, 16:9, 9:16, etc.) - Gemini models
-- image_size (optional): Resolution (1K, 2K, 4K) - Gemini models only
+- aspect_ratio (optional): Image aspect ratio (1:1, 16:9, 9:16, etc.)
+- image_size (optional): Resolution (1K, 2K, 4K) - some models only
 
 Returns generated images with metadata including base64 data URLs, MIME types, and token usage.`,
     inputSchema: ImageGenerationInputSchema,

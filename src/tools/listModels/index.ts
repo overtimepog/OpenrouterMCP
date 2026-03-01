@@ -21,6 +21,8 @@ export const LIST_MODELS_TOOL_NAME = 'openrouter_list_models';
  * Tool description
  */
 export const LIST_MODELS_TOOL_DESCRIPTION = `List all available AI models from OpenRouter with optional filtering.
+IMPORTANT: You MUST call this tool (or openrouter_search_models) BEFORE calling openrouter_chat or openrouter_generate_image to discover current, valid model IDs. Never guess model IDs from memory - always look them up first to ensure you use the latest available models.
+
 Filters by provider, keyword, context length, modality, and price.
 Returns model IDs, names, context lengths, pricing, and capabilities.`;
 
