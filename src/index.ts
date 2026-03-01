@@ -20,6 +20,7 @@ import { createGetCreditsTool } from './tools/credits/index.js';
 import { createGetCostSummaryTool } from './tools/costSummary/index.js';
 import { createGetGenerationTool } from './tools/generation/index.js';
 import { createGetModelEndpointsTool } from './tools/modelEndpoints/index.js';
+import { createGetVersionTool } from './tools/version/index.js';
 import { logger } from './utils/logger.js';
 
 // ============================================================================
@@ -164,6 +165,12 @@ export function registerTools(
     logger: toolLogger,
   });
   server.registerTool(getModelEndpointsTool);
+
+  // Register openrouter_get_version tool
+  const getVersionTool = createGetVersionTool({
+    logger: toolLogger,
+  });
+  server.registerTool(getVersionTool);
 
   toolLogger.info('All tools registered', {
     tools: server.getRegisteredTools(),
