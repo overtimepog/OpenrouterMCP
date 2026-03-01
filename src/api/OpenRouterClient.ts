@@ -275,11 +275,20 @@ export interface ImageGenerationResponse {
   };
 }
 
-// Credits types
+// Credits types (from /api/v1/key endpoint)
 export interface CreditsResponse {
   data: {
-    total_credits: number;
-    total_usage: number;
+    limit: number | null;
+    limit_remaining: number | null;
+    usage: number;
+    usage_daily: number;
+    usage_weekly: number;
+    usage_monthly: number;
+    is_free_tier: boolean;
+    rate_limit?: {
+      requests: number;
+      interval: string;
+    };
   };
 }
 
@@ -707,7 +716,7 @@ export class OpenRouterClient {
    * Get account credits information.
    */
   async getCredits(): Promise<ApiResponse<CreditsResponse>> {
-    return this.request<CreditsResponse>('/credits');
+    return this.request<CreditsResponse>('/key');
   }
 
   /**

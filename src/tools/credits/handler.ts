@@ -18,17 +18,31 @@ export interface GetCreditsHandlerDeps {
 function formatTextResponse(response: GetCreditsResponse): string {
   const lines: string[] = [];
 
-  lines.push('## OpenRouter Account Credits');
+  lines.push('## OpenRouter API Key Credits');
   lines.push('');
-  lines.push(`**Total Credits:** $${response.total_credits.toFixed(4)}`);
-  lines.push(`**Total Usage:** $${response.total_usage.toFixed(4)}`);
-  lines.push(`**Available Balance:** $${response.available_balance.toFixed(4)}`);
-  lines.push('');
-  lines.push(`**Usage:** ${response.usage_percentage.toFixed(1)}%`);
 
-  if (response.available_balance < 1) {
+  if (response.limit !== null) {
+    lines.push(`**Credit Limit:** $${response.limit.toFixed(4)}`);
+    lines.push(`**Remaining:** $${(response.limit_remaining ?? 0).toFixed(4)}`);
+  } else {
+    lines.push('**Credit Limit:** Unlimited');
+  }
+
+  lines.push(`**Total Usage (All Time):** $${response.usage.toFixed(4)}`);
+  lines.push('');
+  lines.push('### Usage Breakdown');
+  lines.push(`- **Today:** $${response.usage_daily.toFixed(4)}`);
+  lines.push(`- **This Week:** $${response.usage_weekly.toFixed(4)}`);
+  lines.push(`- **This Month:** $${response.usage_monthly.toFixed(4)}`);
+
+  if (response.is_free_tier) {
     lines.push('');
-    lines.push('⚠️ **Warning:** Low balance - consider adding more credits');
+    lines.push('*Free tier key*');
+  }
+
+  if (response.limit !== null && response.limit_remaining !== null && response.limit_remaining < 1) {
+    lines.push('');
+    lines.push('Warning: Low balance - consider adding more credits');
   }
 
   return lines.join('\n');
@@ -45,24 +59,26 @@ export async function handleGetCredits(
 }> {
   const { client, logger } = deps;
 
-  logger.debug('Fetching account credits');
+  logger.debug('Fetching API key credits');
 
   try {
     const apiResponse = await client.getCredits();
     const data = apiResponse.data.data;
 
     const response: GetCreditsResponse = {
-      total_credits: data.total_credits,
-      total_usage: data.total_usage,
-      available_balance: data.total_credits - data.total_usage,
-      usage_percentage: data.total_credits > 0
-        ? (data.total_usage / data.total_credits) * 100
-        : 0,
+      limit: data.limit,
+      limit_remaining: data.limit_remaining,
+      usage: data.usage,
+      usage_daily: data.usage_daily,
+      usage_weekly: data.usage_weekly,
+      usage_monthly: data.usage_monthly,
+      is_free_tier: data.is_free_tier,
     };
 
     logger.info('Credits fetched', {
-      available: response.available_balance,
-      usage: response.usage_percentage,
+      limit: response.limit,
+      remaining: response.limit_remaining,
+      usage: response.usage,
     });
 
     return {

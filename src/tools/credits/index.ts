@@ -36,15 +36,15 @@ export function createGetCreditsTool(
 
   return {
     name: GET_CREDITS_TOOL_NAME,
-    description: `Get your OpenRouter account credit balance.
+    description: `Get your OpenRouter API key credits and usage information.
 
 Returns:
-- Total credits purchased
-- Total credits used
-- Available balance
-- Usage percentage
+- Credit limit and remaining balance (if set)
+- Total usage (all time)
+- Usage breakdown: daily, weekly, monthly
+- Free tier status
 
-Use this to monitor your API spending and ensure sufficient credits for operations.`,
+Use this to monitor your API spending and check your key's credit balance.`,
     inputSchema: GetCreditsInputSchema,
     handler: async (_args: unknown) => {
       try {

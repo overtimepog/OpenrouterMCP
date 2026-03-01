@@ -22,6 +22,24 @@ const createMockClient = () => ({
   getCredits: vi.fn(),
 });
 
+// Helper to create a mock /key API response
+function mockKeyResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      data: {
+        limit: null,
+        limit_remaining: null,
+        usage: 0,
+        usage_daily: 0,
+        usage_weekly: 0,
+        usage_monthly: 0,
+        is_free_tier: false,
+        ...overrides,
+      },
+    },
+  };
+}
+
 describe('Get Credits Tool', () => {
   describe('Input Schema Validation', () => {
     it('should accept empty input', () => {
@@ -45,15 +63,10 @@ describe('Get Credits Tool', () => {
       mockLogger = createMockLogger();
     });
 
-    it('should fetch and format credits successfully', async () => {
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 100.0,
-            total_usage: 25.5,
-          },
-        },
-      });
+    it('should fetch and format credits successfully with unlimited key', async () => {
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ usage: 25.5, usage_daily: 5.0, usage_weekly: 15.0, usage_monthly: 25.5 })
+      );
 
       const result = await handleGetCredits({
         client: mockClient as any,
@@ -61,83 +74,65 @@ describe('Get Credits Tool', () => {
       });
 
       expect(result.structuredResponse).toEqual({
-        total_credits: 100.0,
-        total_usage: 25.5,
-        available_balance: 74.5,
-        usage_percentage: 25.5,
+        limit: null,
+        limit_remaining: null,
+        usage: 25.5,
+        usage_daily: 5.0,
+        usage_weekly: 15.0,
+        usage_monthly: 25.5,
+        is_free_tier: false,
       });
 
-      expect(result.textResponse).toContain('$100.0000');
+      expect(result.textResponse).toContain('Unlimited');
       expect(result.textResponse).toContain('$25.5000');
-      expect(result.textResponse).toContain('$74.5000');
     });
 
-    it('should calculate usage percentage correctly', async () => {
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 200.0,
-            total_usage: 50.0,
-          },
-        },
-      });
+    it('should fetch and format credits with a limit', async () => {
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ limit: 200.0, limit_remaining: 150.0, usage: 50.0, usage_daily: 10.0, usage_weekly: 30.0, usage_monthly: 50.0 })
+      );
 
       const result = await handleGetCredits({
         client: mockClient as any,
         logger: mockLogger,
       });
 
-      expect(result.structuredResponse.usage_percentage).toBe(25);
+      expect(result.structuredResponse.limit).toBe(200.0);
+      expect(result.structuredResponse.limit_remaining).toBe(150.0);
+      expect(result.textResponse).toContain('$200.0000');
+      expect(result.textResponse).toContain('$150.0000');
     });
 
-    it('should handle zero credits gracefully', async () => {
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 0,
-            total_usage: 0,
-          },
-        },
-      });
+    it('should handle zero usage gracefully', async () => {
+      mockClient.getCredits.mockResolvedValue(mockKeyResponse());
 
       const result = await handleGetCredits({
         client: mockClient as any,
         logger: mockLogger,
       });
 
-      expect(result.structuredResponse.available_balance).toBe(0);
-      expect(result.structuredResponse.usage_percentage).toBe(0);
+      expect(result.structuredResponse.usage).toBe(0);
+      expect(result.structuredResponse.limit).toBeNull();
     });
 
     it('should show low balance warning', async () => {
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 10.0,
-            total_usage: 9.5,
-          },
-        },
-      });
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ limit: 10.0, limit_remaining: 0.5, usage: 9.5, usage_daily: 2.0, usage_weekly: 5.0, usage_monthly: 9.5 })
+      );
 
       const result = await handleGetCredits({
         client: mockClient as any,
         logger: mockLogger,
       });
 
-      expect(result.structuredResponse.available_balance).toBe(0.5);
+      expect(result.structuredResponse.limit_remaining).toBe(0.5);
       expect(result.textResponse).toContain('Warning');
-      expect(result.textResponse).toContain('Low balance');
     });
 
     it('should log info on success', async () => {
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 100.0,
-            total_usage: 20.0,
-          },
-        },
-      });
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ limit: 100.0, limit_remaining: 80.0, usage: 20.0, usage_daily: 5.0, usage_weekly: 10.0, usage_monthly: 20.0 })
+      );
 
       await handleGetCredits({
         client: mockClient as any,
@@ -147,14 +142,19 @@ describe('Get Credits Tool', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Credits fetched',
         expect.objectContaining({
-          available: 80.0,
+          limit: 100.0,
+          remaining: 80.0,
           usage: 20.0,
         })
       );
     });
 
     it('should handle API errors', async () => {
-      const apiError = new ApiError('Auth failed', ErrorCode.AUTH_ERROR, 401);
+      const apiError = new ApiError({
+        code: ErrorCode.AUTH_MISSING_KEY,
+        message: 'Auth failed',
+        statusCode: 401,
+      });
       mockClient.getCredits.mockRejectedValue(apiError);
 
       await expect(
@@ -167,7 +167,7 @@ describe('Get Credits Tool', () => {
       expect(mockLogger.error).toHaveBeenCalledWith(
         'API error fetching credits',
         expect.objectContaining({
-          code: ErrorCode.AUTH_ERROR,
+          code: ErrorCode.AUTH_MISSING_KEY,
         })
       );
     });
@@ -188,6 +188,20 @@ describe('Get Credits Tool', () => {
           error: 'Network error',
         })
       );
+    });
+
+    it('should indicate free tier keys', async () => {
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ is_free_tier: true, usage: 1.0, usage_daily: 0.5, usage_weekly: 1.0, usage_monthly: 1.0 })
+      );
+
+      const result = await handleGetCredits({
+        client: mockClient as any,
+        logger: mockLogger,
+      });
+
+      expect(result.structuredResponse.is_free_tier).toBe(true);
+      expect(result.textResponse).toContain('Free tier');
     });
   });
 
@@ -234,14 +248,9 @@ describe('Get Credits Tool', () => {
       const mockClient = createMockClient();
       const mockLogger = createMockLogger();
 
-      mockClient.getCredits.mockResolvedValue({
-        data: {
-          data: {
-            total_credits: 50.0,
-            total_usage: 10.0,
-          },
-        },
-      });
+      mockClient.getCredits.mockResolvedValue(
+        mockKeyResponse({ limit: 50.0, limit_remaining: 40.0, usage: 10.0, usage_daily: 3.0, usage_weekly: 7.0, usage_monthly: 10.0 })
+      );
 
       const tool = createGetCreditsTool({
         client: mockClient as any,
@@ -252,10 +261,13 @@ describe('Get Credits Tool', () => {
 
       expect(result.content[0].text).toContain('$50.0000');
       expect(result.structuredContent).toEqual({
-        total_credits: 50.0,
-        total_usage: 10.0,
-        available_balance: 40.0,
-        usage_percentage: 20.0,
+        limit: 50.0,
+        limit_remaining: 40.0,
+        usage: 10.0,
+        usage_daily: 3.0,
+        usage_weekly: 7.0,
+        usage_monthly: 10.0,
+        is_free_tier: false,
       });
     });
   });
