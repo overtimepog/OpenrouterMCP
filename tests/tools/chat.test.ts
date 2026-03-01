@@ -110,6 +110,16 @@ describe('Non-streaming Chat Completion', () => {
         throttleStatus: { isThrottled: false },
         cached: false,
       }),
+      listModels: vi.fn().mockResolvedValue({
+        data: [
+          { id: 'openai/gpt-4', name: 'GPT-4' },
+          { id: 'openai/gpt-4o', name: 'GPT-4o' },
+          { id: 'anthropic/claude-4-opus', name: 'Claude 4 Opus' },
+        ],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
     } as unknown as OpenRouterClient;
   });
 
@@ -331,6 +341,12 @@ describe('Session Continuation with History', () => {
         throttleStatus: { isThrottled: false },
         cached: false,
       }),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-4', name: 'GPT-4' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
     } as unknown as OpenRouterClient;
 
     const handler = createChatHandler({
@@ -384,6 +400,12 @@ describe('Tool Calling Returns Structured Data', () => {
         rateLimits: null,
         throttleStatus: { isThrottled: false },
         cached: false,
+      }),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-4', name: 'GPT-4' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
       }),
     } as unknown as OpenRouterClient;
 
@@ -536,11 +558,54 @@ describe('Token Limit Enforcement', () => {
 // ============================================================================
 
 describe('Error Handling', () => {
+  it('should return model-not-found error with suggestions before making API call', async () => {
+    const mockClient = {
+      createChatCompletion: vi.fn(),
+      listModels: vi.fn().mockResolvedValue({
+        data: [
+          { id: 'openai/gpt-4o', name: 'GPT-4o' },
+          { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo' },
+          { id: 'anthropic/claude-4-opus', name: 'Claude 4 Opus' },
+        ],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
+    } as unknown as OpenRouterClient;
+
+    const sessionManager = new SessionManager();
+    const handler = createChatHandler({
+      client: mockClient,
+      sessionManager,
+      logger: createTestLogger(),
+    });
+
+    const input: ChatInput = {
+      model: 'openai/gpt-5-ultra',
+      messages: [{ role: 'user', content: 'Hello!' }],
+      stream: false,
+    };
+
+    const result = await handler(input);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain('not found');
+    expect(result.content[0]?.text).toContain('openai/gpt-5-ultra');
+    // Should NOT have called the API
+    expect(mockClient.createChatCompletion).not.toHaveBeenCalled();
+  });
+
   it('should handle invalid model error gracefully', async () => {
     const mockClient = {
       createChatCompletion: vi.fn().mockRejectedValue(
         new Error('MODEL_NOT_FOUND: Model "invalid/model" not found')
       ),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'invalid/model', name: 'Invalid Model' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
     } as unknown as OpenRouterClient;
 
     const sessionManager = new SessionManager();
@@ -568,6 +633,12 @@ describe('Error Handling', () => {
       createChatCompletion: vi.fn().mockRejectedValue(
         new Error('AUTH: 401 Unauthorized')
       ),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-4', name: 'GPT-4' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
     } as unknown as OpenRouterClient;
 
     const sessionManager = new SessionManager();
@@ -594,6 +665,12 @@ describe('Error Handling', () => {
       createChatCompletion: vi.fn().mockRejectedValue(
         new Error('RATE_LIMIT: 429 Too Many Requests')
       ),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-4', name: 'GPT-4' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
     } as unknown as OpenRouterClient;
 
     const sessionManager = new SessionManager();

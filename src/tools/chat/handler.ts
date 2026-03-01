@@ -6,6 +6,7 @@
 
 import { OpenRouterClient } from '../../api/OpenRouterClient.js';
 import { Logger } from '../../utils/logger.js';
+import { validateModelId } from '../../utils/modelValidation.js';
 import { ToolResponse } from '../../server/OpenRouterServer.js';
 import { SessionManager } from '../../session/SessionManager.js';
 import { SessionMessage } from '../../session/types.js';
@@ -207,6 +208,22 @@ export function createChatHandler(config: ChatHandlerConfig) {
       hasSessionId: Boolean(input.session_id),
       hasTools: Boolean(input.tools?.length),
     });
+
+    // Pre-flight model validation (uses cached model list)
+    try {
+      const validation = await validateModelId(input.model, client, logger);
+      if (!validation.valid) {
+        return {
+          content: [{ type: 'text', text: validation.error! }],
+          isError: true,
+        };
+      }
+    } catch (validationError) {
+      // Graceful degradation — if validation itself errors, continue to API call
+      logger.warn('Model validation error, proceeding anyway', {
+        error: validationError instanceof Error ? validationError.message : 'Unknown',
+      });
+    }
 
     try {
       // Get or create session

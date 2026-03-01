@@ -18,9 +18,51 @@ const createMockLogger = () => ({
   child: vi.fn().mockReturnThis(),
 });
 
+// Mock model list for validation
+const mockModelList = [
+  {
+    id: 'google/gemini-2.5-flash-image-preview',
+    name: 'Gemini 2.5 Flash Image Preview',
+    architecture: {
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text', 'image'],
+    },
+  },
+  {
+    id: 'openai/gpt-4o',
+    name: 'GPT-4o',
+    architecture: {
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text'],
+    },
+  },
+  {
+    id: 'black-forest-labs/flux-pro',
+    name: 'FLUX Pro',
+    architecture: {
+      input_modalities: ['text'],
+      output_modalities: ['text', 'image'],
+    },
+  },
+  {
+    id: 'black-forest-labs/flux.2-pro',
+    name: 'FLUX.2 Pro',
+    architecture: {
+      input_modalities: ['text'],
+      output_modalities: ['text', 'image'],
+    },
+  },
+];
+
 // Mock client
 const createMockClient = () => ({
   createImageGeneration: vi.fn(),
+  listModels: vi.fn().mockResolvedValue({
+    data: mockModelList,
+    rateLimits: null,
+    throttleStatus: { isThrottled: false },
+    cached: true,
+  }),
 });
 
 describe('Image Generation Tool', () => {
@@ -344,6 +386,48 @@ describe('Image Generation Tool', () => {
       expect(result.structuredResponse.images.length).toBe(0);
       expect(result.structuredResponse.count).toBe(0);
       expect(result.structuredResponse.text_response).toBe('Could not generate image');
+    });
+
+    it('should return error with suggestions for invalid model', async () => {
+      mockClient = createMockClient();
+      mockLogger = createMockLogger();
+
+      await expect(
+        handleImageGeneration(
+          {
+            model: 'fake/nonexistent-model',
+            prompt: 'A sunset',
+          },
+          {
+            client: mockClient as unknown as OpenRouterClient,
+            logger: mockLogger,
+          }
+        )
+      ).rejects.toThrow(ApiError);
+
+      // Should NOT have called the image generation API
+      expect(mockClient.createImageGeneration).not.toHaveBeenCalled();
+    });
+
+    it('should reject valid model without image output modality', async () => {
+      mockClient = createMockClient();
+      mockLogger = createMockLogger();
+
+      // openai/gpt-4o exists but has output_modalities: ['text'] only
+      await expect(
+        handleImageGeneration(
+          {
+            model: 'openai/gpt-4o',
+            prompt: 'A sunset',
+          },
+          {
+            client: mockClient as unknown as OpenRouterClient,
+            logger: mockLogger,
+          }
+        )
+      ).rejects.toThrow('does not support image output');
+
+      expect(mockClient.createImageGeneration).not.toHaveBeenCalled();
     });
 
     it('should handle multiple images in content array', async () => {

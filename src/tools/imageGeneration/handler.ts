@@ -7,7 +7,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { OpenRouterClient, ImageGenerationRequest, ContentPart, ImageObject } from '../../api/OpenRouterClient.js';
 import { Logger } from '../../utils/logger.js';
-import { ApiError } from '../../api/errors.js';
+import { ApiError, ErrorCode } from '../../api/errors.js';
+import { validateModelId } from '../../utils/modelValidation.js';
 import { CostTracker } from '../../cost/CostTracker.js';
 import {
   ImageGenerationInput,
@@ -239,6 +240,27 @@ export async function handleImageGeneration(
     aspectRatio: input.aspect_ratio,
     imageSize: input.image_size,
   });
+
+  // Pre-flight model validation (uses cached model list)
+  try {
+    const validation = await validateModelId(input.model, client, logger, {
+      requireImageOutput: true,
+    });
+    if (!validation.valid) {
+      throw new ApiError({
+        code: ErrorCode.MODEL_NOT_FOUND,
+        message: validation.error!,
+      });
+    }
+  } catch (validationError) {
+    // Re-throw ApiErrors (from our validation), gracefully degrade on other errors
+    if (validationError instanceof ApiError) {
+      throw validationError;
+    }
+    logger.warn('Model validation error, proceeding anyway', {
+      error: validationError instanceof Error ? validationError.message : 'Unknown',
+    });
+  }
 
   // Build the image generation request
   const imageConfig: ImageGenerationRequest['image_config'] = {};
