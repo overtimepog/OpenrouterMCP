@@ -11,7 +11,7 @@ import { ToolResponse } from '../../server/OpenRouterServer.js';
 import { SessionManager } from '../../session/SessionManager.js';
 import { SessionMessage } from '../../session/types.js';
 import { CostTracker } from '../../cost/CostTracker.js';
-import { ChatInput, ChatResponse } from './schema.js';
+import { ChatInput, ChatResponse, ChatMessage, ContentPart } from './schema.js';
 import { handleNonStreamingChat, toSessionMessages } from './nonStreaming.js';
 import { handleStreamingChat } from './streaming.js';
 
@@ -24,6 +24,60 @@ export interface ChatHandlerConfig {
   sessionManager: SessionManager;
   costTracker?: CostTracker;
   logger: Logger;
+}
+
+// ============================================================================
+// Input Normalization
+// ============================================================================
+
+/**
+ * Normalize simplified input (role/message params) into the messages array.
+ * Mutates input.messages in place so downstream code can use it uniformly.
+ */
+export function normalizeMessages(input: ChatInput): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+
+  // If both message and messages are provided, prepend role to existing messages and append message
+  if (input.message !== undefined && input.messages && input.messages.length > 0) {
+    if (input.role) {
+      messages.push({ role: 'system', content: input.role });
+    }
+    messages.push(...input.messages);
+    messages.push({ role: 'user', content: input.message });
+    return messages;
+  }
+
+  // If only message is provided, construct messages from role + message
+  if (input.message !== undefined) {
+    if (input.role) {
+      messages.push({ role: 'system', content: input.role });
+    }
+    messages.push({ role: 'user', content: input.message });
+    return messages;
+  }
+
+  // If only messages is provided, optionally prepend role as system message
+  if (input.messages && input.messages.length > 0) {
+    if (input.role) {
+      messages.push({ role: 'system', content: input.role });
+    }
+    messages.push(...input.messages);
+    return messages;
+  }
+
+  return messages;
+}
+
+/**
+ * Check if any messages contain image content parts
+ */
+export function hasImageContent(messages: ChatMessage[]): boolean {
+  return messages.some((m) => {
+    if (Array.isArray(m.content)) {
+      return m.content.some((part: ContentPart) => part.type === 'image_url');
+    }
+    return false;
+  });
 }
 
 // ============================================================================
@@ -167,6 +221,13 @@ function formatTextResponse(response: ChatResponse): string {
     }
   }
 
+  // Logprobs
+  if (response.logprobs && response.logprobs.length > 0) {
+    lines.push('--- Logprobs ---');
+    lines.push(`  Tokens with logprobs: ${response.logprobs.length}`);
+    lines.push('');
+  }
+
   // Usage
   if (response.usage) {
     lines.push('--- Token Usage ---');
@@ -201,20 +262,26 @@ export function createChatHandler(config: ChatHandlerConfig) {
   const { client, sessionManager, costTracker, logger } = config;
 
   return async (input: ChatInput): Promise<ToolResponse> => {
+    // Normalize simplified input (role/message) into messages array
+    const normalizedMessages = normalizeMessages(input);
+    // Replace input.messages with the normalized version for downstream use
+    (input as Record<string, unknown>).messages = normalizedMessages;
+
     logger.debug('Executing chat tool', {
       model: input.model,
-      messageCount: input.messages.length,
+      messageCount: normalizedMessages.length,
       stream: input.stream,
       hasSessionId: Boolean(input.session_id),
       hasTools: Boolean(input.tools?.length),
     });
 
     // Pre-flight model validation (uses cached model list)
+    let validatedModel: { valid: boolean; model?: import('../../api/OpenRouterClient.js').OpenRouterModel; error?: string } | undefined;
     try {
-      const validation = await validateModelId(input.model, client, logger);
-      if (!validation.valid) {
+      validatedModel = await validateModelId(input.model, client, logger);
+      if (!validatedModel.valid) {
         return {
-          content: [{ type: 'text', text: validation.error! }],
+          content: [{ type: 'text', text: validatedModel.error! }],
           isError: true,
         };
       }
@@ -223,6 +290,23 @@ export function createChatHandler(config: ChatHandlerConfig) {
       logger.warn('Model validation error, proceeding anyway', {
         error: validationError instanceof Error ? validationError.message : 'Unknown',
       });
+    }
+
+    // Pre-flight vision validation
+    if (hasImageContent(normalizedMessages)) {
+      const modelData = validatedModel?.model;
+      if (modelData) {
+        const inputModalities = modelData.architecture?.input_modalities ?? [];
+        if (!inputModalities.includes('image')) {
+          return {
+            content: [{
+              type: 'text',
+              text: `Model "${input.model}" does not support image/vision input.\nUse openrouter_search_models with supports_vision: true to find vision-capable models.`,
+            }],
+            isError: true,
+          };
+        }
+      }
     }
 
     try {

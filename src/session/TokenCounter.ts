@@ -80,13 +80,33 @@ export class TokenCounter {
   }
 
   /**
+   * Estimate the token count for content that may be a string or ContentPart array
+   */
+  estimateContentTokens(content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>): number {
+    if (typeof content === 'string') {
+      return this.estimateTokens(content);
+    }
+
+    let tokens = 0;
+    for (const part of content) {
+      if (part.type === 'text' && part.text) {
+        tokens += this.estimateTokens(part.text);
+      } else if (part.type === 'image_url') {
+        // Flat cost per image (matches OpenAI's low-detail estimate)
+        tokens += 85;
+      }
+    }
+    return tokens;
+  }
+
+  /**
    * Estimate the token count for a single message
    */
   estimateMessageTokens(message: SessionMessage): number {
     let tokens = MESSAGE_OVERHEAD.role + MESSAGE_OVERHEAD.separator;
 
     // Count content tokens
-    tokens += this.estimateTokens(message.content);
+    tokens += this.estimateContentTokens(message.content);
 
     // Count name tokens if present
     if (message.name) {

@@ -100,7 +100,7 @@ export interface ModelsListResponse {
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | ContentPart[];
   name?: string;
   tool_call_id?: string;
 }
@@ -160,6 +160,13 @@ export interface ChatCompletionRequest {
   route?: 'fallback';
   prediction?: { type: 'content'; content: string };
   usage?: { include: boolean };
+  verbosity?: 'low' | 'medium' | 'high' | 'max';
+  logprobs?: boolean;
+  top_logprobs?: number;
+  logit_bias?: Record<string, number>;
+  max_completion_tokens?: number;
+  user?: string;
+  debug?: { echo_upstream_body?: boolean };
 }
 
 export interface ReasoningDetail {
@@ -203,6 +210,18 @@ export interface ChatCompletionResponse {
     };
     finish_reason: string | null;
     native_finish_reason?: string;
+    logprobs?: {
+      content?: Array<{
+        token: string;
+        logprob: number;
+        bytes?: number[];
+        top_logprobs?: Array<{
+          token: string;
+          logprob: number;
+          bytes?: number[];
+        }>;
+      }>;
+    } | null;
   }>;
   usage?: {
     prompt_tokens: number;

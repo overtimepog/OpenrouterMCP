@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OpenRouterClient, ChatCompletionResponse } from '../../src/api/OpenRouterClient.js';
 import { Logger } from '../../src/utils/logger.js';
 import { SessionManager } from '../../src/session/SessionManager.js';
-import { createChatHandler, getOrCreateSession, buildMessageList } from '../../src/tools/chat/handler.js';
+import { createChatHandler, getOrCreateSession, buildMessageList, normalizeMessages, hasImageContent } from '../../src/tools/chat/handler.js';
 import { handleNonStreamingChat, extractToolCalls, toRateLimitStatus } from '../../src/tools/chat/nonStreaming.js';
 import { accumulateChunks, parseSSEStream } from '../../src/tools/chat/streaming.js';
 import { ChatInputSchema, ChatInput, StreamingChunk } from '../../src/tools/chat/schema.js';
@@ -745,9 +745,13 @@ describe('Rate Limit Status', () => {
 // ============================================================================
 
 describe('Input Schema Validation', () => {
-  it('should require model and messages', () => {
+  it('should require model and at least message or messages', () => {
     const result = ChatInputSchema.safeParse({});
     expect(result.success).toBe(false);
+
+    // Model alone without message or messages should fail
+    const result2 = ChatInputSchema.safeParse({ model: 'openai/gpt-4' });
+    expect(result2.success).toBe(false);
   });
 
   it('should accept valid input with required fields only', () => {
@@ -813,5 +817,461 @@ describe('Input Schema Validation', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+// ============================================================================
+// Test 9: Simplified Input (role + message convenience params)
+// ============================================================================
+
+describe('Simplified Input', () => {
+  it('should accept message string without messages array', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      message: 'What is the capital of France?',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept role + message together', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      role: 'You are a helpful assistant',
+      message: 'What is the capital of France?',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept message as ContentPart array', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      message: [
+        { type: 'text', text: 'Describe this image' },
+        { type: 'image_url', image_url: { url: 'https://example.com/img.png' } },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject when neither message nor messages is provided', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept both message and messages together', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      message: 'Follow-up question',
+      messages: [{ role: 'user', content: 'Initial question' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('normalizeMessages should build messages from role + message', () => {
+    const input = {
+      model: 'openai/gpt-4',
+      role: 'You are helpful',
+      message: 'Hello',
+      stream: true,
+    } as ChatInput;
+
+    const messages = normalizeMessages(input);
+    expect(messages.length).toBe(2);
+    expect(messages[0]?.role).toBe('system');
+    expect(messages[0]?.content).toBe('You are helpful');
+    expect(messages[1]?.role).toBe('user');
+    expect(messages[1]?.content).toBe('Hello');
+  });
+
+  it('normalizeMessages should build messages from message alone', () => {
+    const input = {
+      model: 'openai/gpt-4',
+      message: 'Hello',
+      stream: true,
+    } as ChatInput;
+
+    const messages = normalizeMessages(input);
+    expect(messages.length).toBe(1);
+    expect(messages[0]?.role).toBe('user');
+    expect(messages[0]?.content).toBe('Hello');
+  });
+
+  it('normalizeMessages should prepend role and append message to existing messages', () => {
+    const input = {
+      model: 'openai/gpt-4',
+      role: 'You are helpful',
+      message: 'Follow-up',
+      messages: [
+        { role: 'user' as const, content: 'First question' },
+        { role: 'assistant' as const, content: 'First answer' },
+      ],
+      stream: true,
+    } as ChatInput;
+
+    const messages = normalizeMessages(input);
+    expect(messages.length).toBe(4);
+    expect(messages[0]?.role).toBe('system');
+    expect(messages[0]?.content).toBe('You are helpful');
+    expect(messages[1]?.role).toBe('user');
+    expect(messages[1]?.content).toBe('First question');
+    expect(messages[2]?.role).toBe('assistant');
+    expect(messages[3]?.role).toBe('user');
+    expect(messages[3]?.content).toBe('Follow-up');
+  });
+});
+
+// ============================================================================
+// Test 10: Multimodal Messages
+// ============================================================================
+
+describe('Multimodal Messages', () => {
+  it('should accept ContentPart array as message content in messages', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What is in this image?' },
+          { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
+        ],
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should still accept string content in messages', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept image_url with optional detail parameter', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'https://example.com/img.png', detail: 'high' } },
+        ],
+      }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('hasImageContent should detect image content parts', () => {
+    const messagesWithImage = [
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'text' as const, text: 'Describe' },
+          { type: 'image_url' as const, image_url: { url: 'https://example.com/img.png' } },
+        ],
+      },
+    ];
+    expect(hasImageContent(messagesWithImage)).toBe(true);
+
+    const messagesWithoutImage = [
+      { role: 'user' as const, content: 'Hello' },
+    ];
+    expect(hasImageContent(messagesWithoutImage)).toBe(false);
+  });
+});
+
+// ============================================================================
+// Test 11: json_schema Response Format
+// ============================================================================
+
+describe('json_schema Response Format', () => {
+  it('should accept json_schema with name and schema', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'my_schema',
+          schema: { type: 'object', properties: { name: { type: 'string' } } },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept json_schema with strict option', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'strict_schema',
+          strict: true,
+          schema: { type: 'object' },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject json_schema without required name', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          schema: { type: 'object' },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should still accept text and json_object formats', () => {
+    const textResult = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      response_format: { type: 'text' },
+    });
+    expect(textResult.success).toBe(true);
+
+    const jsonResult = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      response_format: { type: 'json_object' },
+    });
+    expect(jsonResult.success).toBe(true);
+  });
+});
+
+// ============================================================================
+// Test 12: New Parameters Schema Validation
+// ============================================================================
+
+describe('New Parameters Schema', () => {
+  it('should accept verbosity parameter', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      verbosity: 'high',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject invalid verbosity value', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      verbosity: 'ultra',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept logprobs and top_logprobs', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logprobs: true,
+      top_logprobs: 5,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject top_logprobs above 20', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      top_logprobs: 25,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept logit_bias', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logit_bias: { '50256': -100 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept max_completion_tokens', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      max_completion_tokens: 4096,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept user parameter', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      user: 'user-12345',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept debug parameter', () => {
+    const result = ChatInputSchema.safeParse({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }],
+      debug: { echo_upstream_body: true },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+// ============================================================================
+// Test 13: Vision Validation
+// ============================================================================
+
+describe('Vision Validation', () => {
+  it('should reject image content sent to non-vision model', async () => {
+    const mockClient = {
+      createChatCompletion: vi.fn(),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{
+          id: 'openai/gpt-4',
+          name: 'GPT-4',
+          architecture: {
+            input_modalities: ['text'],
+            output_modalities: ['text'],
+          },
+        }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
+    } as unknown as OpenRouterClient;
+
+    const sessionManager = new SessionManager();
+    const handler = createChatHandler({
+      client: mockClient,
+      sessionManager,
+      logger: createTestLogger(),
+    });
+
+    const input: ChatInput = {
+      model: 'openai/gpt-4',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this image' },
+          { type: 'image_url', image_url: { url: 'https://example.com/img.png' } },
+        ],
+      }],
+      stream: false,
+    };
+
+    const result = await handler(input);
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain('does not support image/vision input');
+    // Should NOT have called the API
+    expect(mockClient.createChatCompletion).not.toHaveBeenCalled();
+  });
+
+  it('should allow image content for vision-capable model', async () => {
+    const mockClient = {
+      createChatCompletion: vi.fn().mockResolvedValue({
+        data: mockNonStreamingResponse,
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: false,
+      }),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{
+          id: 'openai/gpt-4o',
+          name: 'GPT-4o',
+          architecture: {
+            input_modalities: ['text', 'image'],
+            output_modalities: ['text'],
+          },
+        }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
+    } as unknown as OpenRouterClient;
+
+    const sessionManager = new SessionManager();
+    const handler = createChatHandler({
+      client: mockClient,
+      sessionManager,
+      logger: createTestLogger(),
+    });
+
+    const input: ChatInput = {
+      model: 'openai/gpt-4o',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this image' },
+          { type: 'image_url', image_url: { url: 'https://example.com/img.png' } },
+        ],
+      }],
+      stream: false,
+    };
+
+    const result = await handler(input);
+    expect(result.isError).toBeFalsy();
+    expect(mockClient.createChatCompletion).toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Test 14: Simplified Input Through Handler
+// ============================================================================
+
+describe('Simplified Input Through Handler', () => {
+  it('should handle role + message convenience params end-to-end', async () => {
+    const mockClient = {
+      createChatCompletion: vi.fn().mockResolvedValue({
+        data: mockNonStreamingResponse,
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: false,
+      }),
+      listModels: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-4', name: 'GPT-4' }],
+        rateLimits: null,
+        throttleStatus: { isThrottled: false },
+        cached: true,
+      }),
+    } as unknown as OpenRouterClient;
+
+    const sessionManager = new SessionManager();
+    const handler = createChatHandler({
+      client: mockClient,
+      sessionManager,
+      logger: createTestLogger(),
+    });
+
+    const input = {
+      model: 'openai/gpt-4',
+      role: 'You are a geography expert',
+      message: 'What is the capital of France?',
+      stream: false,
+    } as ChatInput;
+
+    const result = await handler(input);
+    expect(result.isError).toBeFalsy();
+
+    // Verify the API was called with properly constructed messages
+    const apiCall = (mockClient.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    const msgs = apiCall?.messages;
+    expect(msgs).toBeDefined();
+    expect(msgs.length).toBeGreaterThanOrEqual(2);
+    // First should be system message from role
+    expect(msgs[0]?.role).toBe('system');
+    expect(msgs[0]?.content).toBe('You are a geography expert');
+    // Second should be user message
+    expect(msgs[1]?.role).toBe('user');
+    expect(msgs[1]?.content).toBe('What is the capital of France?');
   });
 });

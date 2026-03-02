@@ -213,6 +213,20 @@ export async function main(): Promise<void> {
     logger: logger.child('cost'),
   });
 
+  // Validate API key against OpenRouter before starting
+  try {
+    logger.info('Validating API key with OpenRouter...');
+    await client.getCredits();
+    logger.info('API key validated successfully');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('API key validation failed', { error: errorMessage });
+    console.error('Error: Failed to validate OPENROUTER_API_KEY with OpenRouter API.');
+    console.error(`  ${errorMessage}`);
+    console.error('Please verify your API key is correct and active.');
+    process.exit(1);
+  }
+
   // Create server instance
   const server = new OpenRouterServer({
     apiKey,

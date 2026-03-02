@@ -252,6 +252,13 @@ export async function handleStreamingChat(
     ...(input.models && { models: input.models }),
     ...(input.route && { route: input.route }),
     ...(input.prediction && { prediction: input.prediction }),
+    ...(input.verbosity && { verbosity: input.verbosity }),
+    ...(input.logprobs !== undefined && { logprobs: input.logprobs }),
+    ...(input.top_logprobs !== undefined && { top_logprobs: input.top_logprobs }),
+    ...(input.logit_bias && { logit_bias: input.logit_bias }),
+    ...(input.max_completion_tokens !== undefined && { max_completion_tokens: input.max_completion_tokens }),
+    ...(input.user && { user: input.user }),
+    ...(input.debug && { debug: input.debug }),
   };
 
   // Make the streaming API call

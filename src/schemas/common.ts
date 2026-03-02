@@ -34,6 +34,29 @@ export const temperatureSchema = z.number().min(0).max(2);
 export const maxTokensSchema = positiveInteger;
 
 // ============================================================================
+// Content Part Schemas
+// ============================================================================
+
+/**
+ * Schema for a single content part (text or image_url)
+ */
+export const contentPartSchema = z.union([
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('image_url'),
+    image_url: z.object({
+      url: z.string(),
+      detail: z.string().optional(),
+    }),
+  }),
+]);
+
+/**
+ * Schema for message content — string or array of content parts
+ */
+export const messageContentSchema = z.union([z.string(), z.array(contentPartSchema)]);
+
+// ============================================================================
 // Message Schemas
 // ============================================================================
 
@@ -47,7 +70,7 @@ export const messageRoleSchema = z.enum(['system', 'user', 'assistant', 'tool'])
  */
 export const messageSchema = z.object({
   role: messageRoleSchema,
-  content: z.string(),
+  content: messageContentSchema,
   name: z.string().optional(),
   tool_call_id: z.string().optional(),
 });
@@ -175,6 +198,8 @@ export function safeParse<T>(
 // Type Exports
 // ============================================================================
 
+export type ContentPart = z.infer<typeof contentPartSchema>;
+export type MessageContent = z.infer<typeof messageContentSchema>;
 export type MessageRole = z.infer<typeof messageRoleSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type FunctionDefinition = z.infer<typeof functionDefinitionSchema>;

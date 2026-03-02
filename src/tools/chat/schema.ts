@@ -11,11 +11,32 @@ import { z } from 'zod';
 export const MessageRoleEnum = z.enum(['system', 'user', 'assistant', 'tool']);
 
 /**
+ * Schema for a content part (text or image_url) for multimodal messages
+ */
+export const ContentPartSchema = z.union([
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('image_url'),
+    image_url: z.object({
+      url: z.string(),
+      detail: z.string().optional(),
+    }),
+  }),
+]);
+
+export type ContentPart = z.infer<typeof ContentPartSchema>;
+
+/**
+ * Schema for message content — string or array of content parts (for multimodal/vision)
+ */
+export const MessageContentSchema = z.union([z.string(), z.array(ContentPartSchema)]);
+
+/**
  * Schema for a single chat message
  */
 export const ChatMessageSchema = z.object({
   role: MessageRoleEnum,
-  content: z.string(),
+  content: MessageContentSchema.describe('Message content. String for text, or array of content parts for multimodal (text + images).'),
   name: z.string().optional(),
   tool_call_id: z.string().optional(),
 });
@@ -59,29 +80,50 @@ export const ToolChoiceSchema = z.union([
 export type ToolChoice = z.infer<typeof ToolChoiceSchema>;
 
 /**
- * Schema for response_format parameter
+ * Schema for response_format parameter (text, json_object, or json_schema)
  */
-export const ResponseFormatSchema = z.object({
-  type: z.enum(['text', 'json_object']),
-});
+export const ResponseFormatSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text') }),
+  z.object({ type: z.literal('json_object') }),
+  z.object({
+    type: z.literal('json_schema'),
+    json_schema: z.object({
+      name: z.string(),
+      strict: z.boolean().optional(),
+      schema: z.record(z.unknown()),
+    }),
+  }),
+]);
 
 export type ResponseFormat = z.infer<typeof ResponseFormatSchema>;
 
 /**
- * Input schema for the chat tool
+ * Base input schema for the chat tool (before refinement)
  */
-export const ChatInputSchema = z.object({
+const ChatInputBaseSchema = z.object({
   /** Model ID to use for the chat completion (required) */
   model: z
     .string()
     .min(1, 'Model ID is required')
     .describe('The model ID (format: "provider/model-name"). MUST be discovered via openrouter_search_models or openrouter_list_models first - never guess from memory.'),
 
-  /** Array of messages for the conversation (required) */
+  /** System prompt / role description (convenience param) */
+  role: z
+    .string()
+    .optional()
+    .describe('System prompt / role description for the model (e.g. "You are a helpful coding assistant"). Creates a system message automatically.'),
+
+  /** User message content (convenience param) */
+  message: z
+    .union([z.string(), z.array(ContentPartSchema)])
+    .optional()
+    .describe('The user message content. Can be a string or an array of content parts (text + images). Use this instead of the messages array for simple single-turn requests.'),
+
+  /** Array of messages for the conversation */
   messages: z
     .array(ChatMessageSchema)
-    .min(1, 'At least one message is required')
-    .describe('Array of messages in the conversation'),
+    .optional()
+    .describe('Array of messages in the conversation. Not required if using the message param.'),
 
   /** Optional session ID to continue an existing session */
   session_id: z
@@ -126,7 +168,7 @@ export const ChatInputSchema = z.object({
   /** Response format specification */
   response_format: ResponseFormatSchema
     .optional()
-    .describe('Structured output format specification'),
+    .describe('Structured output format specification (text, json_object, or json_schema)'),
 
   /** Nucleus sampling threshold */
   top_p: z.number().min(0).max(1).optional()
@@ -222,7 +264,48 @@ export const ChatInputSchema = z.object({
     content: z.string(),
   }).optional()
     .describe('Predicted output to reduce latency'),
+
+  /** Verbosity constraint */
+  verbosity: z.enum(['low', 'medium', 'high', 'max']).optional()
+    .describe('Constrain response verbosity level'),
+
+  /** Log probabilities */
+  logprobs: z.boolean().optional()
+    .describe('Return token log probabilities'),
+
+  /** Top logprobs per token */
+  top_logprobs: z.number().int().min(0).max(20).optional()
+    .describe('Number of top logprobs per token (0-20)'),
+
+  /** Logit bias */
+  logit_bias: z.record(z.string(), z.number()).optional()
+    .describe('Bias specific tokens by token ID'),
+
+  /** Max completion tokens (newer alternative to max_tokens) */
+  max_completion_tokens: z.number().int().positive().optional()
+    .describe('Maximum completion tokens (newer alternative to max_tokens)'),
+
+  /** End-user identifier */
+  user: z.string().optional()
+    .describe('Stable end-user identifier for abuse detection'),
+
+  /** Debug options */
+  debug: z.object({
+    echo_upstream_body: z.boolean().optional(),
+  }).optional()
+    .describe('Debug options (e.g., echo the upstream request body)'),
 });
+
+/**
+ * Input schema with validation: at least one of `message` or `messages` must be provided
+ */
+export const ChatInputSchema = ChatInputBaseSchema.refine(
+  (data) => data.message !== undefined || (data.messages !== undefined && data.messages.length > 0),
+  {
+    message: 'At least one of "message" or "messages" must be provided',
+    path: ['message'],
+  }
+);
 
 export type ChatInput = z.infer<typeof ChatInputSchema>;
 
@@ -256,6 +339,20 @@ export interface ChatRateLimitStatus {
   tokensRemaining?: number;
   tokensLimit?: number;
   isApproachingLimit: boolean;
+}
+
+/**
+ * Logprobs token entry
+ */
+export interface LogprobEntry {
+  token: string;
+  logprob: number;
+  bytes?: number[];
+  top_logprobs?: Array<{
+    token: string;
+    logprob: number;
+    bytes?: number[];
+  }>;
 }
 
 /**
@@ -294,6 +391,9 @@ export interface ChatResponse {
 
   /** Native finish reason from the upstream provider */
   native_finish_reason?: string;
+
+  /** Token log probabilities */
+  logprobs?: LogprobEntry[];
 }
 
 /**

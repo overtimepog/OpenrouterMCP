@@ -8,7 +8,7 @@ import { RateLimitInfo } from '../../api/RateLimitManager.js';
 import { Logger } from '../../utils/logger.js';
 import { SessionManager } from '../../session/SessionManager.js';
 import { SessionMessage } from '../../session/types.js';
-import { ChatInput, ChatResponse, ChatToolCall, ChatRateLimitStatus } from './schema.js';
+import { ChatInput, ChatResponse, ChatToolCall, ChatRateLimitStatus, LogprobEntry } from './schema.js';
 
 // ============================================================================
 // Types
@@ -69,6 +69,7 @@ export function extractToolCalls(response: ChatCompletionResponse): ChatToolCall
  * Convert ChatInput messages to SessionMessage format
  */
 export function toSessionMessages(messages: ChatInput['messages']): SessionMessage[] {
+  if (!messages) return [];
   return messages.map((msg) => ({
     role: msg.role,
     content: msg.content,
@@ -131,6 +132,13 @@ export async function handleNonStreamingChat(
     ...(input.models && { models: input.models }),
     ...(input.route && { route: input.route }),
     ...(input.prediction && { prediction: input.prediction }),
+    ...(input.verbosity && { verbosity: input.verbosity }),
+    ...(input.logprobs !== undefined && { logprobs: input.logprobs }),
+    ...(input.top_logprobs !== undefined && { top_logprobs: input.top_logprobs }),
+    ...(input.logit_bias && { logit_bias: input.logit_bias }),
+    ...(input.max_completion_tokens !== undefined && { max_completion_tokens: input.max_completion_tokens }),
+    ...(input.user && { user: input.user }),
+    ...(input.debug && { debug: input.debug }),
   };
 
   // Make the API call
@@ -151,10 +159,12 @@ export async function handleNonStreamingChat(
   const finishReason = choice?.finish_reason ?? null;
   const nativeFinishReason = (choice as Record<string, unknown> | undefined)?.native_finish_reason as string | undefined;
 
-  // Extract reasoning and annotations if present
+  // Extract reasoning, annotations, and logprobs if present
   const reasoning = message?.reasoning as string | undefined;
   const reasoningDetails = message?.reasoning_details as ChatResponse['reasoning_details'];
   const annotations = message?.annotations as ChatResponse['annotations'];
+  const logprobs = (choice as Record<string, unknown> | undefined)?.logprobs as { content?: LogprobEntry[] } | null | undefined;
+  const logprobEntries = logprobs?.content;
 
   // Add assistant response to session
   if (content || toolCalls) {
@@ -183,6 +193,7 @@ export async function handleNonStreamingChat(
     ...(reasoningDetails && { reasoning_details: reasoningDetails }),
     ...(annotations && { annotations }),
     ...(nativeFinishReason && { native_finish_reason: nativeFinishReason }),
+    ...(logprobEntries && { logprobs: logprobEntries }),
   };
 
   return {

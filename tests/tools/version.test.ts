@@ -52,7 +52,7 @@ describe('Get Version Tool', () => {
         logger: mockLogger,
       });
 
-      expect(result.structuredResponse.version).toBe('1.1.0');
+      expect(result.structuredResponse.version).toBe('1.2.0');
     });
 
     it('should format text response with all fields', async () => {
