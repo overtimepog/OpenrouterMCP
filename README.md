@@ -1,15 +1,12 @@
 <div align="center">
 
-```text
-  ___                   ____              _
- / _ \ _ __   ___ _ __ |  _ \ ___  _   _| |_ ___ _ __
-| | | | '_ \ / _ \ '_ \| |_) / _ \| | | | __/ _ \ '__|
-| |_| | |_) |  __/ | | |  _ < (_) | |_| | ||  __/ |
- \___/| .__/ \___|_| |_|_| \_\___/ \__,_|\__\___|_|
-      |_|                          MCP Plugin for Claude Code
-```
+# OpenRouter MCP
 
-**Access 500+ AI models directly from Claude Code.**
+### A Claude Code Plugin for 500+ AI Models
+
+**Chat &bull; Generate Images &bull; Compare Models &bull; Track Costs**
+
+**All without leaving your terminal.**
 
 GPT-4 &bull; Gemini &bull; Llama &bull; Mistral &bull; Flux &bull; Stable Diffusion &bull; and hundreds more
 
