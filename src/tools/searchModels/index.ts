@@ -17,9 +17,16 @@ export {
 export {
   createSearchModelsHandler,
   type SearchModelsHandlerConfig,
+  type ScoredModel,
+  scoreByQuery,
   filterByToolsSupport,
   filterByStreamingSupport,
   filterByTemperatureSupport,
+  filterByReasoningSupport,
+  filterByJsonOutputSupport,
+  filterByWebSearchSupport,
+  filterByImageOutputSupport,
+  filterByVisionSupport,
   applyAdvancedFilters,
   sortByPrice,
   sortByContextLength,
@@ -41,13 +48,14 @@ export const SEARCH_MODELS_TOOL_NAME = 'openrouter_search_models';
 /**
  * Tool description
  */
-export const SEARCH_MODELS_TOOL_DESCRIPTION = `Search and compare AI models from OpenRouter with advanced filtering and sorting.
+export const SEARCH_MODELS_TOOL_DESCRIPTION = `Search and compare AI models from OpenRouter with advanced filtering, sorting, and relevance-ranked results.
 IMPORTANT: You MUST call this tool (or openrouter_list_models) BEFORE calling openrouter_chat or openrouter_generate_image to discover current, valid model IDs. Never guess model IDs from memory - always look them up first to ensure you use the latest available models.
 
 Features:
-- Filter by tool/function calling, streaming, and temperature support
-- Sort by price, context length, or provider
-- Latency hints (when available)
+- Free-text 'query' parameter for natural search (e.g. "claude opus", "fast cheap") with relevance scoring
+- Filter by capabilities: tool calling, streaming, temperature, reasoning, JSON output, web search, vision, image generation
+- Sort by price, context length, provider, or relevance
+- Limit results (default 20, max 100)
 - Side-by-side comparison output with model rankings`;
 
 /**

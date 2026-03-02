@@ -8,16 +8,22 @@ import { OpenRouterClient, OpenRouterModel } from '../../src/api/OpenRouterClien
 import { Logger } from '../../src/utils/logger.js';
 import {
   createSearchModelsHandler,
+  scoreByQuery,
   filterByToolsSupport,
   filterByStreamingSupport,
   filterByTemperatureSupport,
+  filterByReasoningSupport,
+  filterByJsonOutputSupport,
+  filterByWebSearchSupport,
+  filterByImageOutputSupport,
+  filterByVisionSupport,
   applyAdvancedFilters,
   sortByPrice,
   sortByContextLength,
   sortByProvider,
   applySorting,
 } from '../../src/tools/searchModels/handler.js';
-import { SearchModelsInputSchema, SearchModelsInput } from '../../src/tools/searchModels/schema.js';
+import { SearchModelsInputSchema, SearchModelsInput, SearchModelInfo } from '../../src/tools/searchModels/schema.js';
 
 // Create a silent logger for tests
 const createTestLogger = (): Logger => {
@@ -91,6 +97,59 @@ const mockModels: OpenRouterModel[] = [
     supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream'],
   },
 ];
+
+// Extended mock models with new capabilities for testing
+const extendedMockModels: OpenRouterModel[] = [
+  ...mockModels,
+  {
+    id: 'anthropic/claude-3.5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Anthropics most intelligent model with reasoning capabilities',
+    context_length: 200000,
+    pricing: { prompt: '0.000003', completion: '0.000015' },
+    architecture: { modality: 'text+image', tokenizer: 'claude', input_modalities: ['text', 'image'], output_modalities: ['text'] },
+    supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream', 'reasoning', 'response_format', 'web_search'],
+  },
+  {
+    id: 'openai/gpt-4o',
+    name: 'GPT-4o',
+    description: 'OpenAI flagship multimodal model',
+    context_length: 128000,
+    pricing: { prompt: '0.000005', completion: '0.000015' },
+    architecture: { modality: 'text+image', tokenizer: 'gpt-4o', input_modalities: ['text', 'image'], output_modalities: ['text'] },
+    supported_parameters: ['tools', 'temperature', 'top_p', 'max_tokens', 'stream', 'structured_outputs', 'response_format', 'web_search'],
+  },
+  {
+    id: 'openai/dall-e-3',
+    name: 'DALL-E 3',
+    description: 'Image generation model by OpenAI',
+    context_length: 4096,
+    pricing: { prompt: '0', completion: '0' },
+    architecture: { modality: 'text+image', tokenizer: 'dall-e', input_modalities: ['text'], output_modalities: ['image'] },
+    supported_parameters: [],
+  },
+  {
+    id: 'deepseek/deepseek-r1',
+    name: 'DeepSeek R1',
+    description: 'DeepSeek reasoning model with chain of thought',
+    context_length: 64000,
+    pricing: { prompt: '0.000001', completion: '0.000004' },
+    architecture: { modality: 'text', tokenizer: 'deepseek', input_modalities: ['text'], output_modalities: ['text'] },
+    supported_parameters: ['temperature', 'max_tokens', 'stream', 'reasoning'],
+  },
+];
+
+// Helper to create a mock client
+function createMockClient(models: OpenRouterModel[] = extendedMockModels) {
+  return {
+    listModels: vi.fn().mockResolvedValue({
+      data: models,
+      rateLimits: null,
+      throttleStatus: { isThrottled: false },
+      cached: false,
+    }),
+  } as unknown as OpenRouterClient;
+}
 
 // ============================================================================
 // Test 1: Filtering by Tool/Function Calling Support
@@ -401,8 +460,8 @@ describe('Search Models Input Schema Validation', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should accept valid sort_by values', () => {
-    const validSortBy = ['price', 'context_length', 'provider'];
+  it('should accept valid sort_by values including relevance', () => {
+    const validSortBy = ['price', 'context_length', 'provider', 'relevance'];
 
     for (const sortBy of validSortBy) {
       const result = SearchModelsInputSchema.safeParse({ sort_by: sortBy });
@@ -413,5 +472,314 @@ describe('Search Models Input Schema Validation', () => {
   it('should default sort_order to asc', () => {
     const result = SearchModelsInputSchema.parse({ sort_by: 'price' });
     expect(result.sort_order).toBe('asc');
+  });
+
+  it('should accept new capability filter parameters', () => {
+    const result = SearchModelsInputSchema.safeParse({
+      query: 'claude opus',
+      supports_reasoning: true,
+      supports_json_output: true,
+      supports_web_search: false,
+      supports_image_output: true,
+      supports_vision: false,
+      limit: 10,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should default limit to 20', () => {
+    const result = SearchModelsInputSchema.parse({});
+    expect(result.limit).toBe(20);
+  });
+
+  it('should reject limit above 100', () => {
+    const result = SearchModelsInputSchema.safeParse({ limit: 101 });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject limit below 1', () => {
+    const result = SearchModelsInputSchema.safeParse({ limit: 0 });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ============================================================================
+// Query Search Tests
+// ============================================================================
+
+describe('Query Search (scoreByQuery)', () => {
+  it('should find models with multi-word query "claude opus"', () => {
+    const results = scoreByQuery(extendedMockModels, 'claude opus');
+
+    expect(results.length).toBeGreaterThan(0);
+    // Claude 3 Opus should be the top result
+    expect(results[0]!.model.id).toBe('anthropic/claude-3-opus');
+    expect(results[0]!.score).toBeGreaterThan(0.1);
+  });
+
+  it('should find models with single-word query "gemini"', () => {
+    const results = scoreByQuery(extendedMockModels, 'gemini');
+
+    expect(results.length).toBeGreaterThan(0);
+    const ids = results.map(r => r.model.id);
+    expect(ids).toContain('google/gemini-pro');
+  });
+
+  it('should return no results for gibberish', () => {
+    const results = scoreByQuery(extendedMockModels, 'xyzzyqwerty999');
+
+    expect(results.length).toBe(0);
+  });
+
+  it('should rank Claude models higher for query "claude"', () => {
+    const results = scoreByQuery(extendedMockModels, 'claude');
+
+    expect(results.length).toBeGreaterThan(0);
+    // Top results should be Claude models
+    const topIds = results.slice(0, 3).map(r => r.model.id);
+    expect(topIds.every(id => id.includes('claude'))).toBe(true);
+  });
+
+  it('should match on description text', () => {
+    const results = scoreByQuery(extendedMockModels, 'reasoning');
+
+    expect(results.length).toBeGreaterThan(0);
+    const ids = results.map(r => r.model.id);
+    // Claude 3.5 Sonnet and DeepSeek R1 both mention reasoning
+    expect(ids).toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).toContain('deepseek/deepseek-r1');
+  });
+
+  it('should handle empty query gracefully', () => {
+    const results = scoreByQuery(extendedMockModels, '');
+    // All models returned with score 0
+    expect(results.length).toBe(extendedMockModels.length);
+  });
+});
+
+// ============================================================================
+// Relevance Sorting Tests
+// ============================================================================
+
+describe('Relevance Sorting', () => {
+  it('should default to relevance sort when query is provided and no sort_by', async () => {
+    const handler = createSearchModelsHandler({
+      client: createMockClient(),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({ query: 'claude opus' });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as {
+      models: SearchModelInfo[];
+      sort_applied: { by: string; order: string };
+    };
+
+    expect(structured.sort_applied).toEqual({ by: 'relevance', order: 'desc' });
+    // First result should be Claude Opus
+    expect(structured.models[0]?.id).toBe('anthropic/claude-3-opus');
+    // Should have relevance_score
+    expect(structured.models[0]?.relevance_score).toBeDefined();
+    expect(structured.models[0]!.relevance_score!).toBeGreaterThan(0);
+  });
+
+  it('should allow overriding sort with explicit sort_by when query is present', async () => {
+    const handler = createSearchModelsHandler({
+      client: createMockClient(),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({ query: 'claude', sort_by: 'price', sort_order: 'asc' });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as {
+      models: SearchModelInfo[];
+      sort_applied: { by: string; order: string };
+    };
+
+    expect(structured.sort_applied.by).toBe('price');
+  });
+});
+
+// ============================================================================
+// New Capability Filter Tests
+// ============================================================================
+
+describe('Reasoning Support Filter', () => {
+  it('should filter models that support reasoning', () => {
+    const results = filterByReasoningSupport(extendedMockModels, true);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).toContain('deepseek/deepseek-r1');
+    expect(ids).not.toContain('openai/gpt-4-turbo');
+  });
+
+  it('should filter models that do NOT support reasoning', () => {
+    const results = filterByReasoningSupport(extendedMockModels, false);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('openai/gpt-4-turbo');
+    expect(ids).not.toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).not.toContain('deepseek/deepseek-r1');
+  });
+});
+
+describe('JSON Output Support Filter', () => {
+  it('should filter models that support structured output', () => {
+    const results = filterByJsonOutputSupport(extendedMockModels, true);
+    const ids = results.map(m => m.id);
+    // GPT-4 Turbo has response_format, GPT-4o has structured_outputs + response_format, Claude 3.5 has response_format
+    expect(ids).toContain('openai/gpt-4-turbo');
+    expect(ids).toContain('openai/gpt-4o');
+    expect(ids).toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).not.toContain('meta-llama/llama-3-70b');
+  });
+
+  it('should filter models that do NOT support structured output', () => {
+    const results = filterByJsonOutputSupport(extendedMockModels, false);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('meta-llama/llama-3-70b');
+    expect(ids).not.toContain('openai/gpt-4-turbo');
+  });
+});
+
+describe('Web Search Support Filter', () => {
+  it('should filter models that support web search', () => {
+    const results = filterByWebSearchSupport(extendedMockModels, true);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).toContain('openai/gpt-4o');
+    expect(ids).not.toContain('openai/gpt-4-turbo');
+  });
+
+  it('should filter models that do NOT support web search', () => {
+    const results = filterByWebSearchSupport(extendedMockModels, false);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('openai/gpt-4-turbo');
+    expect(ids).not.toContain('anthropic/claude-3.5-sonnet');
+  });
+});
+
+describe('Image Output Support Filter', () => {
+  it('should filter models that support image generation', () => {
+    const results = filterByImageOutputSupport(extendedMockModels, true);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('openai/dall-e-3');
+    expect(ids).not.toContain('openai/gpt-4-turbo');
+  });
+
+  it('should filter models that do NOT support image generation', () => {
+    const results = filterByImageOutputSupport(extendedMockModels, false);
+    const ids = results.map(m => m.id);
+    expect(ids).not.toContain('openai/dall-e-3');
+    expect(ids).toContain('openai/gpt-4-turbo');
+  });
+});
+
+describe('Vision Support Filter', () => {
+  it('should filter models that support vision input', () => {
+    const results = filterByVisionSupport(extendedMockModels, true);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('openai/gpt-4-turbo');
+    expect(ids).toContain('anthropic/claude-3-opus');
+    expect(ids).toContain('openai/gpt-4o');
+    expect(ids).not.toContain('meta-llama/llama-3-70b');
+    expect(ids).not.toContain('openai/dall-e-3');
+  });
+
+  it('should filter models that do NOT support vision input', () => {
+    const results = filterByVisionSupport(extendedMockModels, false);
+    const ids = results.map(m => m.id);
+    expect(ids).toContain('meta-llama/llama-3-70b');
+    expect(ids).not.toContain('openai/gpt-4-turbo');
+  });
+});
+
+// ============================================================================
+// Limit Parameter Tests
+// ============================================================================
+
+describe('Limit Parameter', () => {
+  it('should respect the limit parameter', async () => {
+    const handler = createSearchModelsHandler({
+      client: createMockClient(),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({ limit: 3 });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { models: SearchModelInfo[] };
+    expect(structured.models.length).toBeLessThanOrEqual(3);
+  });
+
+  it('should default to 20 results', async () => {
+    // Create many mock models
+    const manyModels: OpenRouterModel[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `test/model-${i}`,
+      name: `Model ${i}`,
+      context_length: 4096,
+      pricing: { prompt: '0.000001', completion: '0.000002' },
+      architecture: { modality: 'text', tokenizer: 'test', input_modalities: ['text'], output_modalities: ['text'] },
+      supported_parameters: ['temperature'],
+    }));
+
+    const handler = createSearchModelsHandler({
+      client: createMockClient(manyModels),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({});
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { models: SearchModelInfo[]; filtered_count: number };
+    expect(structured.models.length).toBe(20);
+    expect(structured.filtered_count).toBe(30);
+  });
+});
+
+// ============================================================================
+// Combined Query + Filters Tests
+// ============================================================================
+
+describe('Combined Query and Filters', () => {
+  it('should combine query with capability filter', async () => {
+    const handler = createSearchModelsHandler({
+      client: createMockClient(),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({
+      query: 'claude',
+      supports_reasoning: true,
+    });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { models: SearchModelInfo[] };
+    // Only Claude 3.5 Sonnet supports reasoning among Claude models
+    const ids = structured.models.map(m => m.id);
+    expect(ids).toContain('anthropic/claude-3.5-sonnet');
+    expect(ids).not.toContain('anthropic/claude-3-opus'); // no reasoning support
+  });
+
+  it('should combine query with supports_tools and limit', async () => {
+    const handler = createSearchModelsHandler({
+      client: createMockClient(),
+      logger: createTestLogger(),
+    });
+
+    const result = await handler({
+      query: 'gpt',
+      supports_tools: true,
+      limit: 5,
+    });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { models: SearchModelInfo[] };
+    expect(structured.models.length).toBeLessThanOrEqual(5);
+    // All should be GPT models with tool support
+    for (const model of structured.models) {
+      expect(model.id).toMatch(/gpt/);
+    }
   });
 });

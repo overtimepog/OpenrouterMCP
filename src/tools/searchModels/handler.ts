@@ -6,6 +6,7 @@
 import { OpenRouterClient, OpenRouterModel } from '../../api/OpenRouterClient.js';
 import { Logger } from '../../utils/logger.js';
 import { ToolResponse } from '../../server/OpenRouterServer.js';
+import { computeSimilarity } from '../../utils/modelValidation.js';
 import {
   applyFilters,
   toModelInfo,
@@ -74,6 +75,159 @@ export function filterByTemperatureSupport(
   });
 }
 
+// ============================================================================
+// Query Scoring
+// ============================================================================
+
+export interface ScoredModel {
+  model: OpenRouterModel;
+  score: number;
+}
+
+/**
+ * Score models by a free-text query. Supports multi-word queries.
+ * Returns models sorted by relevance score descending, filtered above threshold.
+ */
+export function scoreByQuery(
+  models: OpenRouterModel[],
+  query: string,
+  threshold: number = 0.05
+): ScoredModel[] {
+  const queryLower = query.toLowerCase().trim();
+  if (!queryLower) return models.map(m => ({ model: m, score: 0 }));
+
+  const terms = queryLower.split(/\s+/).filter(t => t.length > 0);
+
+  const scored: ScoredModel[] = models.map(model => {
+    const idLower = model.id.toLowerCase();
+    const nameLower = (model.name ?? '').toLowerCase();
+    const descLower = (model.description ?? '').toLowerCase();
+    const paramsStr = (model.supported_parameters ?? []).join(' ').toLowerCase();
+
+    // Full-query similarity against model ID (reuse existing utility)
+    const fullSimilarity = computeSimilarity(queryLower, idLower);
+
+    // Per-term matching
+    let termScore = 0;
+    let termsMatched = 0;
+
+    for (const term of terms) {
+      let bestTermScore = 0;
+
+      // Exact substring in id or name = high weight
+      if (idLower.includes(term)) {
+        bestTermScore = Math.max(bestTermScore, 0.4);
+      }
+      if (nameLower.includes(term)) {
+        bestTermScore = Math.max(bestTermScore, 0.35);
+      }
+
+      // Substring in description = medium weight
+      if (descLower.includes(term)) {
+        bestTermScore = Math.max(bestTermScore, 0.15);
+      }
+
+      // Substring in supported_parameters = low weight
+      if (paramsStr.includes(term)) {
+        bestTermScore = Math.max(bestTermScore, 0.05);
+      }
+
+      if (bestTermScore > 0) {
+        termsMatched++;
+      }
+      termScore += bestTermScore;
+    }
+
+    // Normalize term score by number of terms
+    const normalizedTermScore = terms.length > 0 ? termScore / terms.length : 0;
+
+    // Bonus for matching all terms
+    const allTermsBonus = terms.length > 1 && termsMatched === terms.length ? 0.15 : 0;
+
+    // Combine: full similarity + per-term matching + all-terms bonus
+    const score = Math.min(
+      fullSimilarity * 0.4 + normalizedTermScore * 0.5 + allTermsBonus,
+      1.0
+    );
+
+    return { model, score };
+  });
+
+  return scored
+    .filter(s => s.score >= threshold)
+    .sort((a, b) => b.score - a.score);
+}
+
+// ============================================================================
+// New Capability Filter Functions
+// ============================================================================
+
+/**
+ * Filter models by reasoning/thinking support
+ */
+export function filterByReasoningSupport(
+  models: OpenRouterModel[],
+  supportsReasoning: boolean
+): OpenRouterModel[] {
+  return models.filter(model => {
+    const has = model.supported_parameters?.includes('reasoning') ?? false;
+    return supportsReasoning ? has : !has;
+  });
+}
+
+/**
+ * Filter models by structured output / response_format support
+ */
+export function filterByJsonOutputSupport(
+  models: OpenRouterModel[],
+  supportsJsonOutput: boolean
+): OpenRouterModel[] {
+  return models.filter(model => {
+    const params = model.supported_parameters ?? [];
+    const has = params.includes('structured_outputs') || params.includes('response_format');
+    return supportsJsonOutput ? has : !has;
+  });
+}
+
+/**
+ * Filter models by web search plugin support
+ */
+export function filterByWebSearchSupport(
+  models: OpenRouterModel[],
+  supportsWebSearch: boolean
+): OpenRouterModel[] {
+  return models.filter(model => {
+    const has = model.supported_parameters?.includes('web_search') ?? false;
+    return supportsWebSearch ? has : !has;
+  });
+}
+
+/**
+ * Filter models by image generation capability (output_modalities includes "image")
+ */
+export function filterByImageOutputSupport(
+  models: OpenRouterModel[],
+  supportsImageOutput: boolean
+): OpenRouterModel[] {
+  return models.filter(model => {
+    const has = model.architecture?.output_modalities?.includes('image') ?? false;
+    return supportsImageOutput ? has : !has;
+  });
+}
+
+/**
+ * Filter models by vision/image input capability (input_modalities includes "image")
+ */
+export function filterByVisionSupport(
+  models: OpenRouterModel[],
+  supportsVision: boolean
+): OpenRouterModel[] {
+  return models.filter(model => {
+    const has = model.architecture?.input_modalities?.includes('image') ?? false;
+    return supportsVision ? has : !has;
+  });
+}
+
 /**
  * Apply advanced filters (extends base filters from list models)
  */
@@ -97,6 +251,31 @@ export function applyAdvancedFilters(
   // Apply temperature support filter
   if (input.supports_temperature !== undefined) {
     filtered = filterByTemperatureSupport(filtered, input.supports_temperature);
+  }
+
+  // Apply reasoning support filter
+  if (input.supports_reasoning !== undefined) {
+    filtered = filterByReasoningSupport(filtered, input.supports_reasoning);
+  }
+
+  // Apply JSON output support filter
+  if (input.supports_json_output !== undefined) {
+    filtered = filterByJsonOutputSupport(filtered, input.supports_json_output);
+  }
+
+  // Apply web search support filter
+  if (input.supports_web_search !== undefined) {
+    filtered = filterByWebSearchSupport(filtered, input.supports_web_search);
+  }
+
+  // Apply image output support filter
+  if (input.supports_image_output !== undefined) {
+    filtered = filterByImageOutputSupport(filtered, input.supports_image_output);
+  }
+
+  // Apply vision support filter
+  if (input.supports_vision !== undefined) {
+    filtered = filterByVisionSupport(filtered, input.supports_vision);
   }
 
   return filtered;
@@ -171,6 +350,10 @@ export function applySorting(
       return sortByContextLength(models, sortOrder);
     case 'provider':
       return sortByProvider(models, sortOrder);
+    case 'relevance':
+      // Relevance sorting is handled by scoreByQuery in the main handler;
+      // if called directly, just return as-is (already sorted by score)
+      return models;
     default:
       return models;
   }
@@ -268,13 +451,15 @@ export function generateDifferentiators(model: OpenRouterModel): string[] {
  */
 export function toSearchModelInfo(
   model: OpenRouterModel,
-  rank: number
+  rank: number,
+  relevanceScore?: number
 ): SearchModelInfo {
   const baseInfo = toModelInfo(model);
 
   return {
     ...baseInfo,
     rank,
+    relevance_score: relevanceScore,
     latency_hint: extractLatencyHint(model),
     differentiators: generateDifferentiators(model),
   };
@@ -293,6 +478,7 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
   return async (input: SearchModelsInput): Promise<ToolResponse> => {
     logger.debug('Executing search models tool', {
       filters: input,
+      query: input.query,
       sortBy: input.sort_by,
       sortOrder: input.sort_order,
     });
@@ -308,8 +494,23 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
         cached: response.cached,
       });
 
-      // Apply advanced filters (includes base filters)
-      let filteredModels = applyAdvancedFilters(allModels, input);
+      // Step 1: If query is provided, score models by relevance first
+      let scoredResults: ScoredModel[] | undefined;
+      let workingModels: OpenRouterModel[];
+
+      if (input.query) {
+        scoredResults = scoreByQuery(allModels, input.query);
+        workingModels = scoredResults.map(s => s.model);
+        logger.debug('Applied query scoring', {
+          query: input.query,
+          matchCount: scoredResults.length,
+        });
+      } else {
+        workingModels = allModels;
+      }
+
+      // Step 2: Apply all filters (base + advanced)
+      let filteredModels = applyAdvancedFilters(workingModels, input);
       const filteredCount = filteredModels.length;
 
       logger.debug('Applied filters', {
@@ -318,20 +519,42 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
         filters: input,
       });
 
-      // Apply sorting
+      // Step 3: Apply sorting
+      // If no sort_by and query was provided, default to relevance sort
       const sortOrder = input.sort_order ?? 'asc';
-      filteredModels = applySorting(filteredModels, input.sort_by, sortOrder);
+      const effectiveSortBy = input.sort_by ?? (input.query ? 'relevance' : undefined);
 
-      if (input.sort_by) {
+      if (effectiveSortBy && effectiveSortBy !== 'relevance') {
+        filteredModels = applySorting(filteredModels, effectiveSortBy, sortOrder);
+      }
+      // For relevance sort: models are already ordered by score from scoreByQuery
+
+      if (effectiveSortBy) {
         logger.debug('Applied sorting', {
-          sortBy: input.sort_by,
+          sortBy: effectiveSortBy,
           sortOrder,
         });
       }
 
-      // Convert to SearchModelInfo with ranking
-      const models = filteredModels.map((model, index) =>
-        toSearchModelInfo(model, index + 1)
+      // Step 4: Apply limit
+      const limit = input.limit ?? 20;
+      const limitedModels = filteredModels.slice(0, limit);
+
+      // Step 5: Build score lookup for relevance_score attachment
+      const scoreMap = new Map<string, number>();
+      if (scoredResults) {
+        for (const s of scoredResults) {
+          scoreMap.set(s.model.id, s.score);
+        }
+      }
+
+      // Convert to SearchModelInfo with ranking and optional relevance_score
+      const models = limitedModels.map((model, index) =>
+        toSearchModelInfo(
+          model,
+          index + 1,
+          scoreMap.get(model.id)
+        )
       );
 
       // Build response
@@ -340,16 +563,16 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
         total_count: totalCount,
         filtered_count: filteredCount,
         filters_applied: Object.fromEntries(
-          Object.entries(input).filter(([, v]) => v !== undefined)
+          Object.entries(input).filter(([k, v]) => v !== undefined && k !== 'limit')
         ) as Partial<SearchModelsInput>,
-        sort_applied: input.sort_by ? {
-          by: input.sort_by,
-          order: sortOrder,
+        sort_applied: effectiveSortBy ? {
+          by: effectiveSortBy,
+          order: effectiveSortBy === 'relevance' ? 'desc' : sortOrder,
         } : undefined,
       };
 
       // Format text response
-      const textResponse = formatTextResponse(result);
+      const textResponse = formatTextResponse(result, limit);
 
       return {
         content: [{ type: 'text', text: textResponse }],
@@ -375,7 +598,7 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
 /**
  * Format the response as human-readable text for comparison
  */
-function formatTextResponse(result: SearchModelsResponse): string {
+function formatTextResponse(result: SearchModelsResponse, limit: number = 20): string {
   const lines: string[] = [];
 
   lines.push(`Found ${result.filtered_count} models (out of ${result.total_count} total)`);
@@ -398,10 +621,8 @@ function formatTextResponse(result: SearchModelsResponse): string {
     lines.push('=' .repeat(80));
     lines.push('');
 
-    // Show first 20 models to avoid overwhelming output
-    const displayModels = result.models.slice(0, 20);
-
-    for (const model of displayModels) {
+    // Display all models (already limited by the handler)
+    for (const model of result.models) {
       const price = model.pricing.prompt > 0
         ? `$${model.pricing.prompt.toFixed(8)}/token`
         : 'Free';
@@ -411,6 +632,10 @@ function formatTextResponse(result: SearchModelsResponse): string {
       lines.push(`   Context: ${model.context_length.toLocaleString()} tokens`);
       lines.push(`   Price: ${price}`);
       lines.push(`   Modality: ${model.capabilities.modality}`);
+
+      if (model.relevance_score !== undefined) {
+        lines.push(`   Relevance: ${(model.relevance_score * 100).toFixed(1)}%`);
+      }
 
       if (model.differentiators.length > 0) {
         lines.push(`   Highlights: ${model.differentiators.join(', ')}`);
@@ -423,23 +648,23 @@ function formatTextResponse(result: SearchModelsResponse): string {
       lines.push('');
     }
 
-    if (result.models.length > 20) {
-      lines.push(`... and ${result.models.length - 20} more models`);
+    if (result.filtered_count > limit) {
+      lines.push(`Showing ${result.models.length} of ${result.filtered_count} matching models`);
     }
 
     // Add comparison summary
     lines.push('=' .repeat(80));
     lines.push('Summary:');
 
-    if (displayModels.length > 0) {
+    if (result.models.length > 0) {
       // Find cheapest and most expensive in displayed set
-      const cheapest = displayModels.reduce((min, m) =>
+      const cheapest = result.models.reduce((min, m) =>
         m.pricing.prompt < min.pricing.prompt ? m : min
       );
-      const mostExpensive = displayModels.reduce((max, m) =>
+      const mostExpensive = result.models.reduce((max, m) =>
         m.pricing.prompt > max.pricing.prompt ? m : max
       );
-      const largestContext = displayModels.reduce((max, m) =>
+      const largestContext = result.models.reduce((max, m) =>
         m.context_length > max.context_length ? m : max
       );
 
