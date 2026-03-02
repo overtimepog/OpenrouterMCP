@@ -1,61 +1,99 @@
 <div align="center">
 
-# OpenRouter MCP
+# ⚡ OpenRouter MCP
 
-### A Claude Code Plugin for 500+ AI Models
+### Every AI model. One terminal. Zero context switching.
 
-**Chat &bull; Generate Images &bull; Compare Models &bull; Track Costs**
+<p>
+<code>GPT-4</code> &nbsp;
+<code>Claude</code> &nbsp;
+<code>Gemini</code> &nbsp;
+<code>Llama</code> &nbsp;
+<code>Mistral</code> &nbsp;
+<code>Flux</code> &nbsp;
+<code>+300 more</code>
+</p>
 
-**All without leaving your terminal.**
+<br>
 
-GPT-4 &bull; Gemini &bull; Llama &bull; Mistral &bull; Flux &bull; Stable Diffusion &bull; and hundreds more
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT License"></a>
+<a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-20%2B-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node 20+"></a>
+<a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/typescript-5.3-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript"></a>
+<a href="https://vitest.dev"><img src="https://img.shields.io/badge/tests-383_passing-brightgreen?style=flat-square" alt="Tests"></a>
+<a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8B5CF6?style=flat-square" alt="MCP Compatible"></a>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/Tests-383%20passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev)
-[![MCP](https://img.shields.io/badge/MCP-Compatible-8B5CF6?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48L3N2Zz4=)](https://modelcontextprotocol.io)
+<br><br>
 
-[Getting Started](#getting-started) &bull; [Commands](#slash-commands) &bull; [Tools](#mcp-tools) &bull; [Agents](#agents) &bull; [Development](#development)
+[**Getting Started**](#-getting-started) · [**Features**](#-features) · [**Commands**](#-slash-commands) · [**Tools**](#-mcp-tools) · [**Development**](#-development)
 
 </div>
 
----
+<br>
 
-## Why OpenRouter MCP?
+## The Problem
 
-You're in Claude Code. You need a quick answer from GPT-4. Or a Flux image. Or a side-by-side comparison of three models. Normally you'd leave your terminal, open a browser, juggle API keys...
+You're deep in Claude Code. You need a quick GPT-4 opinion. Or a Flux-generated image. Or a side-by-side shootout across three models. That means: leave the terminal, open a browser, find the right API, copy-paste keys, lose your flow...
 
-**Not anymore.** This plugin drops the entire OpenRouter catalog into your workflow — chat, generate images, compare models, track costs — without ever leaving Claude Code.
+## The Fix
 
----
+Add it to your MCP config and go:
 
-## Getting Started
-
-### 1. Get an API Key
-
-Grab one from [openrouter.ai/keys](https://openrouter.ai/keys) and export it:
-
-```bash
-export OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```json
+{
+  "openrouter": {
+    "command": "npx",
+    "args": ["-y", "openrouter-mcp-server"],
+    "env": {
+      "OPENROUTER_API_KEY": "sk-or-v1-your-key-here"
+    }
+  }
+}
 ```
 
-> Add this to your `~/.zshrc` or `~/.bashrc` so it persists.
+Now every model on OpenRouter is one tool call away. Chat, image gen, model search, cost tracking — all inline.
 
-### 2. Install the Plugin
+---
+
+## ⚡ Getting Started
+
+**Step 1** — Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
+
+**Step 2** — Add to your MCP config (`~/.claude/settings.json` or your app's MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "openrouter": {
+      "command": "npx",
+      "args": ["-y", "openrouter-mcp-server"],
+      "env": {
+        "OPENROUTER_API_KEY": "sk-or-v1-your-key-here"
+      }
+    }
+  }
+}
+```
+
+Done. The server starts automatically when your MCP client connects.
+
+<details>
+<summary>Alternative: Install as Claude Code plugin</summary>
+<br>
 
 ```bash
+export OPENROUTER_API_KEY=sk-or-v1-your-key-here   # add to ~/.zshrc to persist
 claude plugin add /path/to/OpenrouterMCP/dist/index.js
 ```
 
-That's it. The plugin auto-builds on first session if needed.
+</details>
 
 <details>
-<summary><b>Manual setup (clone & build yourself)</b></summary>
+<summary>Alternative: Clone & build from source</summary>
+<br>
 
 ```bash
-git clone https://github.com/overtimepog/OpenrouterCC.git
-cd OpenrouterCC
+git clone https://github.com/overtimepog/OpenrouterMCP.git
+cd OpenrouterMCP
 bash scripts/setup.sh
 ```
 
@@ -63,26 +101,98 @@ bash scripts/setup.sh
 
 ---
 
-## What You Get
+## 🎯 Features
+
+<table>
+<tr>
+<td align="center" width="25%">
+<br>
+<img src="https://img.shields.io/badge/-Chat-4ade80?style=for-the-badge&logo=chatbot&logoColor=white" alt="Chat">
+<br><br>
+<b>Multi-Model Chat</b>
+<br>
+<sub>Talk to any of 300+ models with multi-turn context, streaming, and tool calling</sub>
+<br><br>
+</td>
+<td align="center" width="25%">
+<br>
+<img src="https://img.shields.io/badge/-Images-f472b6?style=for-the-badge&logo=image&logoColor=white" alt="Images">
+<br><br>
+<b>Image Generation</b>
+<br>
+<sub>Flux, Stable Diffusion, Gemini — control ratio, resolution, save locally</sub>
+<br><br>
+</td>
+<td align="center" width="25%">
+<br>
+<img src="https://img.shields.io/badge/-Compare-60a5fa?style=for-the-badge&logo=scale&logoColor=white" alt="Compare">
+<br><br>
+<b>Model Comparison</b>
+<br>
+<sub>Same prompt to N models, side-by-side quality, speed, and cost</sub>
+<br><br>
+</td>
+<td align="center" width="25%">
+<br>
+<img src="https://img.shields.io/badge/-Costs-fbbf24?style=for-the-badge&logo=dollar&logoColor=white" alt="Costs">
+<br><br>
+<b>Cost Tracking</b>
+<br>
+<sub>Real-time spend per session, per model, per operation</sub>
+<br><br>
+</td>
+</tr>
+</table>
+
+---
+
+## 🔧 Slash Commands
+
+```
+/openrouter:models      Search & filter by provider, capability, price, context length
+/openrouter:or-chat     Chat with any model — auto-discovers the best match
+/openrouter:or-image    Generate images — picks optimal model automatically
+/openrouter:or-credits  Check your credit balance
+/openrouter:or-costs    Spending breakdown by model and operation
+```
+
+---
+
+## 🧠 Skills (Auto-Activated)
+
+> Skills fire automatically when Claude detects a matching intent — no slash commands needed.
+
+| | Skill | Trigger Example | What Happens |
+|:--|:------|:----------------|:-------------|
+| 🎯 | **Model Selection** | *"which model for coding?"* | Live search → comparison → cost analysis → recommendation |
+| 🎨 | **Image Workflow** | *"generate an image of..."* | Prompt crafting → model discovery → generation → iteration |
+| 💰 | **Cost Monitor** | *"how much am I spending?"* | Balance check → cost breakdown → budget optimization |
+| ⚖️ | **Multi-Model Compare** | *"compare Claude vs GPT-4"* | Same prompt → N models → side-by-side results + cost |
+
+---
+
+## 🤖 Agents
+
+Specialist agents that work autonomously on complex, multi-step tasks:
 
 <table>
 <tr>
 <td width="50%">
 
-### Chat with Any Model
-Send messages to GPT-4, Gemini, Llama, Mistral, or any of 500+ models. Multi-turn conversations with automatic context management.
+**🔬 Model Researcher**
 
-### Generate Images
-Create images with Flux, Stable Diffusion, and Gemini image models. Control aspect ratio, resolution, and save locally.
+> *"do a deep comparison of coding models"*
+
+Searches the full catalog, runs test prompts, benchmarks pricing vs quality, and writes a structured report.
 
 </td>
 <td width="50%">
 
-### Compare Models Side-by-Side
-Send the same prompt to multiple models and compare quality, speed, and cost in one shot.
+**🖼️ Image Specialist**
 
-### Track Your Spending
-Real-time cost tracking per session, per model, per operation. Know exactly where your credits go.
+> *"generate a batch of product photos"*
+
+Optimizes prompts, selects ideal models, handles batch generation, and iterates on results.
 
 </td>
 </tr>
@@ -90,76 +200,40 @@ Real-time cost tracking per session, per model, per operation. Know exactly wher
 
 ---
 
-## Slash Commands
-
-| Command | What It Does |
-|:--------|:-------------|
-| `/openrouter:models` | Search & filter models by provider, capability, price, context length |
-| `/openrouter:or-chat` | Chat with any model — auto-discovers the best match |
-| `/openrouter:or-image` | Generate images — finds optimal image models automatically |
-| `/openrouter:or-credits` | Check your OpenRouter credit balance |
-| `/openrouter:or-costs` | View spending breakdown by model and operation |
-
----
-
-## Skills (Auto-Activated)
-
-Skills fire automatically when Claude detects a matching intent — no commands needed.
-
-| Skill | Triggers On | What Happens |
-|:------|:------------|:-------------|
-| **Model Selection** | *"which model for coding?"* | Live search, comparison, cost analysis, recommendation |
-| **Image Workflow** | *"generate an image of..."* | Prompt crafting → model discovery → generation → iteration |
-| **Cost Monitor** | *"how much am I spending?"* | Balance check, cost breakdown, budget optimization |
-| **Multi-Model Compare** | *"compare Claude vs GPT-4"* | Same prompt → N models → side-by-side results + cost |
-
----
-
-## Agents
-
-Autonomous specialist agents for complex, multi-step tasks:
-
-| Agent | Use Case | What It Does |
-|:------|:---------|:-------------|
-| **Model Researcher** | *"deep comparison of coding models"* | Searches catalog, runs test prompts, compares pricing & quality, writes reports |
-| **Image Specialist** | *"generate a batch of product photos"* | Prompt optimization, model selection, batch generation, iterative refinement |
-
----
-
-## MCP Tools
-
-Full reference for all tools exposed over the Model Context Protocol.
+## 📡 MCP Tools
 
 <details>
-<summary><b><code>openrouter_chat</code></b> — Chat with any model</summary>
+<summary><kbd>openrouter_chat</kbd> — Chat with any model</summary>
+<br>
 
 | Parameter | Type | Required | Description |
 |:----------|:-----|:---------|:------------|
 | `model` | string | **Yes** | Model ID (e.g. `openai/gpt-4`) |
 | `messages` | array | **Yes** | `[{ role, content }]` message array |
-| `session_id` | string | No | Continue an existing conversation |
-| `stream` | boolean | No | Stream response (default: `true`) |
-| `temperature` | number | No | Randomness 0–2 |
-| `max_tokens` | number | No | Max tokens to generate |
-| `tools` | array | No | OpenAI-compatible function definitions |
-| `tool_choice` | string | No | `auto` / `none` / `required` |
-| `top_p` | number | No | Nucleus sampling threshold |
-| `top_k` | number | No | Top-K sampling |
-| `frequency_penalty` | number | No | Frequency penalty (-2 to 2) |
-| `presence_penalty` | number | No | Presence penalty (-2 to 2) |
-| `reasoning` | object | No | Enable reasoning tokens (`{ effort }`) |
-| `provider` | object | No | Provider routing preferences |
-| `models` | array | No | Fallback model list for auto-routing |
-| `plugins` | array | No | OpenRouter plugins (e.g. web search) |
+| `session_id` | string | | Continue an existing conversation |
+| `stream` | boolean | | Stream response (default: `true`) |
+| `temperature` | number | | Randomness 0–2 |
+| `max_tokens` | number | | Max tokens to generate |
+| `tools` | array | | OpenAI-compatible function definitions |
+| `tool_choice` | string | | `auto` / `none` / `required` |
+| `top_p` | number | | Nucleus sampling threshold |
+| `top_k` | number | | Top-K sampling |
+| `frequency_penalty` | number | | Frequency penalty (−2 to 2) |
+| `presence_penalty` | number | | Presence penalty (−2 to 2) |
+| `reasoning` | object | | Reasoning tokens (`{ effort }`) |
+| `provider` | object | | Provider routing preferences |
+| `models` | array | | Fallback model list for auto-routing |
+| `plugins` | array | | OpenRouter plugins (e.g. web search) |
 
 </details>
 
 <details>
-<summary><b><code>openrouter_search_models</code></b> — Search & compare models</summary>
+<summary><kbd>openrouter_search_models</kbd> — Advanced model search & compare</summary>
+<br>
 
 | Parameter | Type | Description |
 |:----------|:-----|:------------|
-| `provider` | string | Filter by provider (`openai`, `anthropic`, ...) |
+| `provider` | string | Filter by provider (`openai`, `anthropic`, …) |
 | `keyword` | string | Search in model names |
 | `min_context_length` | number | Minimum context window |
 | `max_context_length` | number | Maximum context window |
@@ -174,7 +248,8 @@ Full reference for all tools exposed over the Model Context Protocol.
 </details>
 
 <details>
-<summary><b><code>openrouter_list_models</code></b> — List models with filtering</summary>
+<summary><kbd>openrouter_list_models</kbd> — List all models with filtering</summary>
+<br>
 
 | Parameter | Type | Description |
 |:----------|:-----|:------------|
@@ -188,27 +263,30 @@ Full reference for all tools exposed over the Model Context Protocol.
 </details>
 
 <details>
-<summary><b><code>openrouter_generate_image</code></b> — Generate images</summary>
+<summary><kbd>openrouter_generate_image</kbd> — Generate images</summary>
+<br>
 
 | Parameter | Type | Required | Description |
 |:----------|:-----|:---------|:------------|
 | `model` | string | **Yes** | Image model ID |
 | `prompt` | string | **Yes** | Image description |
-| `aspect_ratio` | string | No | `1:1`, `16:9`, `9:16`, etc. |
-| `image_size` | string | No | `1K`, `2K`, or `4K` |
-| `save_path` | string | No | Local save path (`.png`, `.jpg`, `.webp`) |
+| `aspect_ratio` | string | | `1:1`, `16:9`, `9:16`, etc. |
+| `image_size` | string | | `1K`, `2K`, or `4K` |
+| `save_path` | string | | Local save path (`.png`, `.jpg`, `.webp`) |
 
 </details>
 
 <details>
-<summary><b><code>openrouter_get_credits</code></b> — Check balance & usage</summary>
+<summary><kbd>openrouter_get_credits</kbd> — Check balance & usage</summary>
+<br>
 
 No parameters. Returns credit limit, remaining balance, total usage, and daily/weekly/monthly breakdowns.
 
 </details>
 
 <details>
-<summary><b><code>openrouter_get_cost_summary</code></b> — Cost breakdown</summary>
+<summary><kbd>openrouter_get_cost_summary</kbd> — Cost breakdown</summary>
+<br>
 
 | Parameter | Type | Description |
 |:----------|:-----|:------------|
@@ -218,7 +296,8 @@ No parameters. Returns credit limit, remaining balance, total usage, and daily/w
 </details>
 
 <details>
-<summary><b><code>openrouter_get_generation</code></b> — Generation stats</summary>
+<summary><kbd>openrouter_get_generation</kbd> — Generation stats</summary>
+<br>
 
 | Parameter | Type | Required | Description |
 |:----------|:-----|:---------|:------------|
@@ -229,7 +308,8 @@ Returns tokens, cost, latency, model, and provider info.
 </details>
 
 <details>
-<summary><b><code>openrouter_get_model_endpoints</code></b> — Provider endpoints</summary>
+<summary><kbd>openrouter_get_model_endpoints</kbd> — Provider endpoints & routing</summary>
+<br>
 
 | Parameter | Type | Required | Description |
 |:----------|:-----|:---------|:------------|
@@ -241,104 +321,82 @@ Returns all available providers with latency, uptime, pricing, and capabilities.
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 OpenrouterMCP/
-├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest
-├── commands/                    # Slash commands
-│   ├── models.md
-│   ├── or-chat.md
-│   ├── or-image.md
-│   ├── or-credits.md
-│   └── or-costs.md
-├── skills/                      # Auto-activated skills
-│   ├── model-selection/
-│   ├── image-workflow/
-│   ├── cost-monitor/
-│   └── multi-model-compare/
-├── agents/                      # Specialist agents
-│   ├── model-researcher.md
-│   └── image-specialist.md
-├── hooks/
-│   └── hooks.json               # Auto-build on session start
-├── scripts/
-│   ├── setup.sh
-│   └── session-start.sh
-└── src/                         # MCP server (TypeScript)
-    ├── index.ts                 # Entry point
-    ├── server/                  # Server setup
-    ├── api/                     # OpenRouter client, caching, rate limits
-    ├── session/                 # Multi-turn conversation management
-    ├── cost/                    # Cost tracking
-    ├── schemas/                 # Shared Zod schemas
-    ├── tools/                   # Tool implementations
-    │   ├── chat/
-    │   ├── searchModels/
-    │   ├── listModels/
-    │   ├── imageGeneration/
-    │   ├── credits/
-    │   ├── costSummary/
-    │   ├── generation/
-    │   └── modelEndpoints/
-    └── utils/                   # Logger, model validation
+├── commands/               Slash commands (/models, /or-chat, /or-image, ...)
+├── skills/                 Auto-activated workflows (model-selection, image, cost, compare)
+├── agents/                 Specialist agents (model-researcher, image-specialist)
+├── hooks/                  Auto-build on session start
+├── scripts/                Setup & session scripts
+└── src/                    TypeScript MCP server
+    ├── server/             Server bootstrap
+    ├── api/                OpenRouter client, cache, rate limits
+    ├── session/            Multi-turn conversation management
+    ├── cost/               Cost tracking engine
+    ├── schemas/            Shared Zod schemas
+    ├── tools/              8 tool implementations
+    └── utils/              Logger, model validation
 ```
 
 ---
 
-## Development
+## 🛠 Development
 
 ```bash
-npm install          # Install dependencies
-npm run build        # Build
-npm test             # Run all 383 tests
-npm run dev          # Watch mode
+npm install          # dependencies
+npm run build        # compile
+npm test             # 383 tests
+npm run dev          # watch mode
 ```
 
 ---
 
-## Troubleshooting
+## 🔍 Troubleshooting
 
 <details>
-<summary><b>"OPENROUTER_API_KEY environment variable is required"</b></summary>
+<summary><b>OPENROUTER_API_KEY not found</b></summary>
+<br>
 
-Add to your shell profile and restart your terminal:
 ```bash
-echo 'export OPENROUTER_API_KEY=sk-or-v1-your-key' >> ~/.zshrc
-source ~/.zshrc
+echo 'export OPENROUTER_API_KEY=sk-or-v1-your-key' >> ~/.zshrc && source ~/.zshrc
 ```
 
 </details>
 
 <details>
-<summary><b>"Invalid API key provided"</b></summary>
+<summary><b>Invalid API key</b></summary>
+<br>
 
-Verify your key is correct and active at [openrouter.ai/keys](https://openrouter.ai/keys).
-
-</details>
-
-<details>
-<summary><b>"Model not found"</b></summary>
-
-Use `/openrouter:models` to search for current models. IDs follow the format `provider/model-name`. The plugin always searches live — never hardcode model IDs.
+Verify at [openrouter.ai/keys](https://openrouter.ai/keys) that the key is correct and active.
 
 </details>
 
 <details>
-<summary><b>"Rate limit exceeded"</b></summary>
+<summary><b>Model not found</b></summary>
+<br>
 
-The server warns before you hit limits. Consider upgrading your OpenRouter plan or spacing out requests.
+Use `/openrouter:models` to search. IDs use the format `provider/model-name`. The plugin always searches live — never hardcode IDs.
+
+</details>
+
+<details>
+<summary><b>Rate limit exceeded</b></summary>
+<br>
+
+The server warns before you hit limits. Upgrade your OpenRouter plan or space out requests.
 
 </details>
 
 <details>
 <summary><b>Tools not showing up</b></summary>
+<br>
 
-1. Verify `OPENROUTER_API_KEY` is set: `echo $OPENROUTER_API_KEY`
-2. Check plugin status: `claude plugin list`
+1. Check key is set: `echo $OPENROUTER_API_KEY`
+2. Check plugin: `claude plugin list`
 3. Restart Claude Code
-4. Run `bash scripts/setup.sh` if the build is missing
+4. Rebuild: `bash scripts/setup.sh`
 
 </details>
 
@@ -346,8 +404,13 @@ The server warns before you hit limits. Consider upgrading your OpenRouter plan 
 
 <div align="center">
 
-**[OpenRouter Docs](https://openrouter.ai/docs)** &bull; **[API Reference](https://openrouter.ai/docs/api-reference)** &bull; **[MCP Spec](https://modelcontextprotocol.io)** &bull; **[Get API Key](https://openrouter.ai/keys)**
+<a href="https://openrouter.ai/docs"><img src="https://img.shields.io/badge/OpenRouter-Docs-8B5CF6?style=flat-square" alt="Docs"></a>
+<a href="https://openrouter.ai/docs/api-reference"><img src="https://img.shields.io/badge/API-Reference-blue?style=flat-square" alt="API"></a>
+<a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Spec-green?style=flat-square" alt="MCP"></a>
+<a href="https://openrouter.ai/keys"><img src="https://img.shields.io/badge/Get-API_Key-orange?style=flat-square" alt="Key"></a>
 
-MIT License
+<br>
+
+<sub>MIT License · Built for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></sub>
 
 </div>
