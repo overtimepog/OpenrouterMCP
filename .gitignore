@@ -33,3 +33,4 @@ npm-debug.log*
 tmp/
 temp/
 .mcp.json
+agent-os/
