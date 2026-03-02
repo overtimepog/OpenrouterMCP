@@ -152,7 +152,8 @@ const ChatInputBaseSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe('Maximum number of tokens to generate'),
+    .default(16000)
+    .describe('Maximum number of tokens to generate (default: 16000). Rarely needs to be changed — only lower this if you specifically need shorter responses.'),
 
   /** Array of tool definitions for function calling */
   tools: z
