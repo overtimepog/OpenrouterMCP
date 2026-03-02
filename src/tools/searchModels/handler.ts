@@ -521,13 +521,17 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
 
       // Step 3: Apply sorting
       // If no sort_by and query was provided, default to relevance sort
-      const sortOrder = input.sort_order ?? 'asc';
       const effectiveSortBy = input.sort_by ?? (input.query ? 'relevance' : undefined);
+      // Default to desc for relevance (best matches first), asc for everything else
+      const sortOrder = input.sort_order ?? (effectiveSortBy === 'relevance' ? 'desc' : 'asc');
 
       if (effectiveSortBy && effectiveSortBy !== 'relevance') {
         filteredModels = applySorting(filteredModels, effectiveSortBy, sortOrder);
+      } else if (effectiveSortBy === 'relevance' && sortOrder === 'asc') {
+        // Models come from scoreByQuery in best-first (desc) order; reverse for asc
+        filteredModels = filteredModels.slice().reverse();
       }
-      // For relevance sort: models are already ordered by score from scoreByQuery
+      // For relevance sort with desc (default): best matches first, already ordered by scoreByQuery
 
       if (effectiveSortBy) {
         logger.debug('Applied sorting', {
@@ -567,7 +571,7 @@ export function createSearchModelsHandler(config: SearchModelsHandlerConfig) {
         ) as Partial<SearchModelsInput>,
         sort_applied: effectiveSortBy ? {
           by: effectiveSortBy,
-          order: effectiveSortBy === 'relevance' ? 'desc' : sortOrder,
+          order: sortOrder,
         } : undefined,
       };
 
