@@ -24,7 +24,7 @@
 
 <br><br>
 
-[**Getting Started**](#-getting-started) · [**Features**](#-features) · [**Commands**](#-slash-commands) · [**Tools**](#-mcp-tools) · [**Development**](#-development)
+[**Getting Started**](#-getting-started) · [**Features**](#-features) · [**Tools**](#-mcp-tools) · [**Development**](#-development)
 
 </div>
 
@@ -32,7 +32,7 @@
 
 ## The Problem
 
-You're deep in Claude Code. You need a quick GPT-4 opinion. Or a Flux-generated image. Or a side-by-side shootout across three models. That means: leave the terminal, open a browser, find the right API, copy-paste keys, lose your flow...
+You're in your AI coding assistant. You need a quick GPT-4 opinion. Or a Flux-generated image. Or a side-by-side comparison across three models. That means: leave your editor, open a browser, find the right API, copy-paste keys, lose your flow...
 
 ## The Fix
 
@@ -75,17 +75,6 @@ Now every model on OpenRouter is one tool call away. Chat, image gen, model sear
 ```
 
 Done. The server starts automatically when your MCP client connects.
-
-<details>
-<summary>Alternative: Install as Claude Code plugin</summary>
-<br>
-
-```bash
-export OPENROUTER_API_KEY=sk-or-v1-your-key-here   # add to ~/.zshrc to persist
-claude plugin add /path/to/OpenrouterMCP/dist/index.js
-```
-
-</details>
 
 <details>
 <summary>Alternative: Clone & build from source</summary>
@@ -140,60 +129,6 @@ bash scripts/setup.sh
 <br>
 <sub>Real-time spend per session, per model, per operation</sub>
 <br><br>
-</td>
-</tr>
-</table>
-
----
-
-## 🔧 Slash Commands
-
-```
-/openrouter:models      Search & filter by provider, capability, price, context length
-/openrouter:or-chat     Chat with any model — auto-discovers the best match
-/openrouter:or-image    Generate images — picks optimal model automatically
-/openrouter:or-credits  Check your credit balance
-/openrouter:or-costs    Spending breakdown by model and operation
-```
-
----
-
-## 🧠 Skills (Auto-Activated)
-
-> Skills fire automatically when Claude detects a matching intent — no slash commands needed.
-
-| | Skill | Trigger Example | What Happens |
-|:--|:------|:----------------|:-------------|
-| 🎯 | **Model Selection** | *"which model for coding?"* | Live search → comparison → cost analysis → recommendation |
-| 🎨 | **Image Workflow** | *"generate an image of..."* | Prompt crafting → model discovery → generation → iteration |
-| 💰 | **Cost Monitor** | *"how much am I spending?"* | Balance check → cost breakdown → budget optimization |
-| ⚖️ | **Multi-Model Compare** | *"compare Claude vs GPT-4"* | Same prompt → N models → side-by-side results + cost |
-
----
-
-## 🤖 Agents
-
-Specialist agents that work autonomously on complex, multi-step tasks:
-
-<table>
-<tr>
-<td width="50%">
-
-**🔬 Model Researcher**
-
-> *"do a deep comparison of coding models"*
-
-Searches the full catalog, runs test prompts, benchmarks pricing vs quality, and writes a structured report.
-
-</td>
-<td width="50%">
-
-**🖼️ Image Specialist**
-
-> *"generate a batch of product photos"*
-
-Optimizes prompts, selects ideal models, handles batch generation, and iterates on results.
-
 </td>
 </tr>
 </table>
@@ -325,18 +260,22 @@ Returns all available providers with latency, uptime, pricing, and capabilities.
 
 ```
 OpenrouterMCP/
-├── commands/               Slash commands (/models, /or-chat, /or-image, ...)
-├── skills/                 Auto-activated workflows (model-selection, image, cost, compare)
-├── agents/                 Specialist agents (model-researcher, image-specialist)
-├── hooks/                  Auto-build on session start
-├── scripts/                Setup & session scripts
 └── src/                    TypeScript MCP server
+    ├── index.ts            Entry point
     ├── server/             Server bootstrap
     ├── api/                OpenRouter client, cache, rate limits
     ├── session/            Multi-turn conversation management
     ├── cost/               Cost tracking engine
     ├── schemas/            Shared Zod schemas
     ├── tools/              8 tool implementations
+    │   ├── chat/
+    │   ├── searchModels/
+    │   ├── listModels/
+    │   ├── imageGeneration/
+    │   ├── credits/
+    │   ├── costSummary/
+    │   ├── generation/
+    │   └── modelEndpoints/
     └── utils/              Logger, model validation
 ```
 
@@ -377,7 +316,7 @@ Verify at [openrouter.ai/keys](https://openrouter.ai/keys) that the key is corre
 <summary><b>Model not found</b></summary>
 <br>
 
-Use `/openrouter:models` to search. IDs use the format `provider/model-name`. The plugin always searches live — never hardcode IDs.
+Model IDs use the format `provider/model-name` (e.g. `openai/gpt-4`). Use the `openrouter_search_models` tool to find current models — never hardcode IDs.
 
 </details>
 
@@ -394,9 +333,9 @@ The server warns before you hit limits. Upgrade your OpenRouter plan or space ou
 <br>
 
 1. Check key is set: `echo $OPENROUTER_API_KEY`
-2. Check plugin: `claude plugin list`
-3. Restart Claude Code
-4. Rebuild: `bash scripts/setup.sh`
+2. Verify your MCP config has the correct server entry
+3. Restart your MCP client
+4. Try `npx -y openrouter-mcp-server` directly to check for errors
 
 </details>
 
@@ -411,6 +350,6 @@ The server warns before you hit limits. Upgrade your OpenRouter plan or space ou
 
 <br>
 
-<sub>MIT License · Built for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></sub>
+<sub>MIT License</sub>
 
 </div>
