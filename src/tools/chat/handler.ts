@@ -264,6 +264,26 @@ export function createChatHandler(config: ChatHandlerConfig) {
   return async (input: ChatInput): Promise<ToolResponse> => {
     // Normalize simplified input (role/message) into messages array
     const normalizedMessages = normalizeMessages(input);
+
+    // Inject token limit awareness into system message so the model can plan its response
+    const effectiveMaxTokens = input.max_completion_tokens ?? input.max_tokens;
+    if (effectiveMaxTokens !== undefined) {
+      const tokenLimitNote = `\n\n[IMPORTANT: Your response is limited to ${effectiveMaxTokens} tokens. Structure your response to fit within this limit. If you feel this topic needs more information or you are still missing a vital piece after reaching the limit, end your response by clearly requesting more tokens to continue.]`;
+      const existingSystemIdx = normalizedMessages.findIndex((m) => m.role === 'system');
+      if (existingSystemIdx !== -1) {
+        const existing = normalizedMessages[existingSystemIdx]!;
+        normalizedMessages[existingSystemIdx] = {
+          ...existing,
+          content: (typeof existing.content === 'string' ? existing.content : '') + tokenLimitNote,
+        };
+      } else {
+        normalizedMessages.unshift({
+          role: 'system' as const,
+          content: tokenLimitNote.trimStart(),
+        });
+      }
+    }
+
     // Replace input.messages with the normalized version for downstream use
     (input as Record<string, unknown>).messages = normalizedMessages;
 
