@@ -1,6 +1,6 @@
 {
   "name": "openrouter-mcp-server",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "MCP server providing access to OpenRouter's unified API for 500+ AI models",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
